@@ -1,0 +1,28 @@
+/* Scoped copy of new_world's brand tokens + animations (global.css),
+   namespaced under .site so they never leak into the CRM's own theme. */
+.site {
+  --color-brand: #1961ae;
+  --color-brand-hover: rgb(1, 76, 138);
+  --color-text: #262626;
+  --color-error: #ff8f00;
+  --radius: 5px;
+}
+
+.ctaBtn {
+  background-color: var(--color-brand);
+  border-radius: var(--radius);
+}
+.ctaBtn:hover {
+  background-color: var(--color-brand-hover);
+}
+
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInFromLeft {
+  from { opacity: 0; transform: translateX(-40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.slideInRight { animation: slideInFromRight 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.slideInLeft  { animation: slideInFromLeft  0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
