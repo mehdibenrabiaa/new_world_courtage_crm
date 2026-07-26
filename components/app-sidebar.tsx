@@ -13,32 +13,36 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { GalleryVerticalEndIcon, ReceiptTextIcon } from "lucide-react"
+import { GalleryVerticalEndIcon, ReceiptTextIcon, UsersIcon, LayoutDashboardIcon } from "lucide-react"
 
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    name: "New World Courtage",
+    email: "contact@newworldcourtage.fr",
+    avatar: "",
   },
   teams: [
     {
       name: "New World Courtage",
-      logo: (
-        <GalleryVerticalEndIcon
-        />
-      ),
-      plan: "Enterprise",
+      logo: <GalleryVerticalEndIcon />,
+      plan: "CRM",
     },
   ],
   navMain: [
     {
+      title: "Tableau de bord",
+      url: "/dashboard",
+      icon: <LayoutDashboardIcon />,
+    },
+    {
       title: "Devis",
       url: "/dashboard/devis",
-      icon: (
-        <ReceiptTextIcon
-        />
-      ),
+      icon: <ReceiptTextIcon />,
+    },
+    {
+      title: "Contacts",
+      url: "/dashboard/contacts",
+      icon: <UsersIcon />,
     },
   ],
 }
