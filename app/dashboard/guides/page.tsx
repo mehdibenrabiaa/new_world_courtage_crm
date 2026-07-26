@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -28,17 +29,10 @@ import {
   SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { MoreHorizontalIcon, PencilIcon, Trash2Icon, PlusIcon } from "lucide-react"
-
-type Status = "Brouillon" | "Publié"
-
-type Guide = {
-  id: number
-  title: string
-  slug: string
-  category: string
-  status: Status
-  createdAt: string
-}
+import {
+  getGuides, createGuide, deleteGuide, saveGuide,
+  type Guide, type Status,
+} from "@/lib/guides-store"
 
 const CATEGORIES = [
   "Flotte & Transport",
@@ -56,24 +50,12 @@ const STATUS_STYLES: Record<Status, string> = {
   "Publié": "bg-green-100 text-green-700",
 }
 
-const INITIAL_GUIDES: Guide[] = [
-  { id: 1, title: "Comment souscrire une assurance taxi ?", slug: "comment-souscrire-assurance-taxi", category: "Taxi", status: "Publié", createdAt: "2026-06-01" },
-  { id: 2, title: "De quelle couverture ai-je besoin pour mon taxi ?", slug: "quelle-couverture-assurance-taxi", category: "Taxi", status: "Publié", createdAt: "2026-06-03" },
-  { id: 3, title: "Comment choisir son assurance taxi ?", slug: "comment-choisir-assurance-taxi", category: "Taxi", status: "Publié", createdAt: "2026-06-05" },
-  { id: 4, title: "Comment souscrire une assurance ambulance ?", slug: "comment-souscrire-assurance-ambulance", category: "Ambulance", status: "Publié", createdAt: "2026-06-08" },
-  { id: 5, title: "Quelle couverture pour une assurance ambulance ?", slug: "quelle-couverture-assurance-ambulance", category: "Ambulance", status: "Publié", createdAt: "2026-06-10" },
-  { id: 6, title: "Comment choisir son assurance ambulance ?", slug: "comment-choisir-assurance-ambulance", category: "Ambulance", status: "Publié", createdAt: "2026-06-12" },
-  { id: 7, title: "Les garanties indispensables pour une flotte de transport", slug: "garanties-flotte-transport", category: "Flotte & Transport", status: "Brouillon", createdAt: "2026-06-20" },
-  { id: 8, title: "Assurance décennale : guide complet pour les artisans", slug: "assurance-decennale-guide", category: "Construction", status: "Brouillon", createdAt: "2026-07-01" },
-]
-
 function formatDate(iso: string) {
   const [year, month, day] = iso.split("-").map(Number)
   return new Date(year, month - 1, day).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
 }
 
 type Draft = { title: string; slug: string; category: string; status: Status }
-
 const EMPTY_DRAFT: Draft = { title: "", slug: "", category: CATEGORIES[0], status: "Brouillon" }
 
 function toSlug(title: string) {
@@ -86,13 +68,15 @@ function toSlug(title: string) {
 }
 
 export default function GuidesPage() {
-  const [guides, setGuides] = useState<Guide[]>(INITIAL_GUIDES)
-  const [dialog, setDialog] = useState<"create" | "edit" | null>(null)
-  const [editing, setEditing] = useState<Guide | null>(null)
+  const router = useRouter()
+  const [guides, setGuides] = useState<Guide[]>([])
+  const [createOpen, setCreateOpen] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [search, setSearch] = useState("")
   const [filterCat, setFilterCat] = useState("Tous")
   const [filterStatus, setFilterStatus] = useState<"Tous" | Status>("Tous")
+
+  useEffect(() => { setGuides(getGuides()) }, [])
 
   const filtered = guides.filter((g) => {
     const matchSearch = g.title.toLowerCase().includes(search.toLowerCase())
@@ -101,47 +85,41 @@ export default function GuidesPage() {
     return matchSearch && matchCat && matchStatus
   })
 
-  function openCreate() {
-    setEditing(null)
-    setDraft(EMPTY_DRAFT)
-    setDialog("create")
-  }
-
-  function openEdit(g: Guide) {
-    setEditing(g)
-    setDraft({ title: g.title, slug: g.slug, category: g.category, status: g.status })
-    setDialog("edit")
-  }
-
   function handleTitleChange(title: string) {
-    setDraft((prev) => ({
-      ...prev,
-      title,
-      slug: dialog === "create" ? toSlug(title) : prev.slug,
-    }))
+    setDraft((prev) => ({ ...prev, title, slug: toSlug(title) }))
   }
 
-  function save() {
+  function handleCreate() {
     if (!draft.title.trim()) return
-    if (dialog === "create") {
-      const newId = Math.max(0, ...guides.map((g) => g.id)) + 1
-      setGuides((prev) => [
-        { id: newId, ...draft, createdAt: new Date().toISOString().split("T")[0] },
-        ...prev,
-      ])
-    } else if (editing) {
-      setGuides((prev) => prev.map((g) => g.id === editing.id ? { ...g, ...draft } : g))
-    }
-    setDialog(null)
+    const guide = createGuide({
+      title: draft.title,
+      slug: draft.slug || toSlug(draft.title),
+      category: draft.category,
+      status: draft.status,
+      categoryHref: "",
+      intro: "",
+      authorName: "Loubna Moucharref",
+      authorAvatar: "/team/loubna-moucharref.jpeg",
+      editorName: "",
+      reviewerName: "",
+      updatedDate: "",
+      readingTime: "",
+    })
+    setCreateOpen(false)
+    setDraft(EMPTY_DRAFT)
+    router.push(`/dashboard/guides/${guide.id}`)
   }
 
   function handleDelete(id: number) {
+    deleteGuide(id)
     setGuides((prev) => prev.filter((g) => g.id !== id))
   }
 
   function toggleStatus(g: Guide) {
     const next: Status = g.status === "Publié" ? "Brouillon" : "Publié"
-    setGuides((prev) => prev.map((x) => x.id === g.id ? { ...x, status: next } : x))
+    const updated = { ...g, status: next }
+    saveGuide(updated)
+    setGuides((prev) => prev.map((x) => x.id === g.id ? updated : x))
   }
 
   return (
@@ -173,7 +151,7 @@ export default function GuidesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
           />
-          <Select value={filterCat} onValueChange={setFilterCat}>
+          <Select value={filterCat} onValueChange={(v) => v != null && setFilterCat(v)}>
             <SelectTrigger className="w-44" aria-label="Filtrer par catégorie">
               <SelectValue />
             </SelectTrigger>
@@ -192,7 +170,7 @@ export default function GuidesPage() {
               <SelectItem value="Brouillon">Brouillon</SelectItem>
             </SelectContent>
           </Select>
-          <Button className="ml-auto" onClick={openCreate}>
+          <Button className="ml-auto" onClick={() => { setDraft(EMPTY_DRAFT); setCreateOpen(true) }}>
             <PlusIcon />
             Nouveau guide
           </Button>
@@ -218,7 +196,11 @@ export default function GuidesPage() {
                 </TableCell>
               </TableRow>
             ) : filtered.map((g) => (
-              <TableRow key={g.id}>
+              <TableRow
+                key={g.id}
+                className="cursor-pointer"
+                onClick={() => router.push(`/dashboard/guides/${g.id}`)}
+              >
                 <TableCell className="font-medium max-w-xs truncate">{g.title}</TableCell>
                 <TableCell className="text-muted-foreground text-xs font-mono">{g.slug}</TableCell>
                 <TableCell>{g.category}</TableCell>
@@ -226,7 +208,7 @@ export default function GuidesPage() {
                   <Badge variant="secondary" className={STATUS_STYLES[g.status]}>{g.status}</Badge>
                 </TableCell>
                 <TableCell>{formatDate(g.createdAt)}</TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       render={
@@ -237,7 +219,7 @@ export default function GuidesPage() {
                       }
                     />
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEdit(g)}>
+                      <DropdownMenuItem onClick={() => router.push(`/dashboard/guides/${g.id}`)}>
                         <PencilIcon />
                         Modifier
                       </DropdownMenuItem>
@@ -257,11 +239,11 @@ export default function GuidesPage() {
         </Table>
       </div>
 
-      {/* Create / Edit dialog */}
-      <Dialog open={!!dialog} onOpenChange={(open) => !open && setDialog(null)}>
+      {/* Create dialog */}
+      <Dialog open={createOpen} onOpenChange={(open) => !open && setCreateOpen(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{dialog === "create" ? "Nouveau guide" : `Modifier — ${editing?.title}`}</DialogTitle>
+            <DialogTitle>Nouveau guide</DialogTitle>
           </DialogHeader>
 
           <div className="flex flex-col gap-4">
@@ -274,7 +256,6 @@ export default function GuidesPage() {
                 placeholder="Comment choisir son assurance taxi ?"
               />
             </div>
-
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="g-slug">Slug</Label>
               <Input
@@ -285,11 +266,10 @@ export default function GuidesPage() {
                 className="font-mono text-sm"
               />
             </div>
-
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="g-cat">Catégorie</Label>
-              <Select value={draft.category} onValueChange={(v) => setDraft((prev) => ({ ...prev, category: v }))}>
-                <SelectTrigger id="g-cat" className="w-full" aria-label="Catégorie">
+              <Select value={draft.category} onValueChange={(v) => v != null && setDraft((prev) => ({ ...prev, category: v }))}>
+                <SelectTrigger id="g-cat" aria-label="Catégorie">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -297,11 +277,10 @@ export default function GuidesPage() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="g-status">Statut</Label>
               <Select value={draft.status} onValueChange={(v) => setDraft((prev) => ({ ...prev, status: v as Status }))}>
-                <SelectTrigger id="g-status" className="w-full" aria-label="Statut">
+                <SelectTrigger id="g-status" aria-label="Statut">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -313,9 +292,9 @@ export default function GuidesPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Annuler</Button>
-            <Button onClick={save} disabled={!draft.title.trim()}>
-              {dialog === "create" ? "Créer" : "Enregistrer"}
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Annuler</Button>
+            <Button onClick={handleCreate} disabled={!draft.title.trim()}>
+              Créer &amp; éditer
             </Button>
           </DialogFooter>
         </DialogContent>
