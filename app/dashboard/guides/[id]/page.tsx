@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select"
 import {
   GripVerticalIcon, Trash2Icon, PlusIcon,
-  CheckIcon, ChevronLeftIcon,
+  CheckIcon, ChevronLeftIcon, Loader2Icon,
 } from "lucide-react"
 import {
   getGuide, saveGuide, uid,
@@ -265,6 +265,7 @@ export default function GuideEditorPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [guide, setGuide] = useState<Guide | null>(null)
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   const sensors = useSensors(
@@ -273,9 +274,12 @@ export default function GuideEditorPage() {
   )
 
   useEffect(() => {
-    const g = getGuide(Number(id))
-    if (!g) { router.push("/dashboard/guides"); return }
-    setGuide(g)
+    getGuide(Number(id))
+      .then((g) => {
+        if (!g) router.push("/dashboard/guides")
+        else setGuide(g)
+      })
+      .catch(() => router.push("/dashboard/guides"))
   }, [id, router])
 
   function updateField<K extends keyof Guide>(key: K, value: Guide[K]) {
@@ -360,14 +364,27 @@ export default function GuideEditorPage() {
     )
   }
 
-  function handleSave() {
-    if (!guide) return
-    saveGuide(guide)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  async function handleSave() {
+    if (!guide || saving) return
+    setSaving(true)
+    try {
+      const updated = await saveGuide(guide)
+      setGuide(updated)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  if (!guide) return null
+  if (!guide) return (
+    <div className="flex flex-1 items-center justify-center text-muted-foreground gap-2">
+      <Loader2Icon size={18} className="animate-spin" />
+      <span className="text-sm">Chargement…</span>
+    </div>
+  )
 
   return (
     <>
@@ -411,8 +428,12 @@ export default function GuideEditorPage() {
               <SelectItem value="Publié">Publié</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" onClick={handleSave} className="gap-1.5">
-            {saved ? <><CheckIcon size={14} /> Enregistré</> : "Enregistrer"}
+          <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
+            {saving
+              ? <><Loader2Icon size={14} className="animate-spin" /> Enregistrement…</>
+              : saved
+              ? <><CheckIcon size={14} /> Enregistré</>
+              : "Enregistrer"}
           </Button>
         </div>
       </header>

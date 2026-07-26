@@ -28,7 +28,7 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from "@/components/ui/select"
-import { MoreHorizontalIcon, PencilIcon, Trash2Icon, PlusIcon } from "lucide-react"
+import { MoreHorizontalIcon, PencilIcon, Trash2Icon, PlusIcon, Loader2Icon } from "lucide-react"
 import {
   getGuides, createGuide, deleteGuide, saveGuide,
   type Guide, type Status,
@@ -70,13 +70,20 @@ function toSlug(title: string) {
 export default function GuidesPage() {
   const router = useRouter()
   const [guides, setGuides] = useState<Guide[]>([])
+  const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [search, setSearch] = useState("")
   const [filterCat, setFilterCat] = useState("Tous")
   const [filterStatus, setFilterStatus] = useState<"Tous" | Status>("Tous")
 
-  useEffect(() => { setGuides(getGuides()) }, [])
+  useEffect(() => {
+    getGuides()
+      .then(setGuides)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
 
   const filtered = guides.filter((g) => {
     const matchSearch = g.title.toLowerCase().includes(search.toLowerCase())
@@ -89,37 +96,58 @@ export default function GuidesPage() {
     setDraft((prev) => ({ ...prev, title, slug: toSlug(title) }))
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!draft.title.trim()) return
-    const guide = createGuide({
-      title: draft.title,
-      slug: draft.slug || toSlug(draft.title),
-      category: draft.category,
-      status: draft.status,
-      categoryHref: "",
-      intro: "",
-      authorName: "Loubna Moucharref",
-      authorAvatar: "/team/loubna-moucharref.jpeg",
-      editorName: "",
-      reviewerName: "",
-      updatedDate: "",
-      readingTime: "",
-    })
-    setCreateOpen(false)
-    setDraft(EMPTY_DRAFT)
-    router.push(`/dashboard/guides/${guide.id}`)
+    setCreating(true)
+    try {
+      const guide = await createGuide({
+        title: draft.title,
+        slug: draft.slug || toSlug(draft.title),
+        category: draft.category,
+        status: draft.status,
+        categoryHref: "",
+        intro: "",
+        authorName: "Loubna Moucharref",
+        authorAvatar: "/team/loubna-moucharref.jpeg",
+        editorName: "",
+        reviewerName: "",
+        updatedDate: "",
+        readingTime: "",
+      })
+      setCreateOpen(false)
+      setDraft(EMPTY_DRAFT)
+      router.push(`/dashboard/guides/${guide.id}`)
+    } catch (err) {
+      if (err instanceof Error && err.message === "slug-conflict") {
+        alert("Un guide avec ce slug existe déjà. Modifiez le slug.")
+      } else {
+        console.error(err)
+      }
+    } finally {
+      setCreating(false)
+    }
   }
 
-  function handleDelete(id: number) {
-    deleteGuide(id)
-    setGuides((prev) => prev.filter((g) => g.id !== id))
+  async function handleDelete(id: number) {
+    try {
+      await deleteGuide(id)
+      setGuides((prev) => prev.filter((g) => g.id !== id))
+    } catch (err) {
+      console.error(err)
+    }
   }
 
-  function toggleStatus(g: Guide) {
+  async function toggleStatus(g: Guide) {
     const next: Status = g.status === "Publié" ? "Brouillon" : "Publié"
     const updated = { ...g, status: next }
-    saveGuide(updated)
     setGuides((prev) => prev.map((x) => x.id === g.id ? updated : x))
+    try {
+      await saveGuide(updated)
+    } catch (err) {
+      // Revert on failure
+      setGuides((prev) => prev.map((x) => x.id === g.id ? g : x))
+      console.error(err)
+    }
   }
 
   return (
@@ -160,7 +188,7 @@ export default function GuidesPage() {
               {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}>
+          <Select value={filterStatus} onValueChange={(v) => v != null && setFilterStatus(v as typeof filterStatus)}>
             <SelectTrigger className="w-36" aria-label="Filtrer par statut">
               <SelectValue />
             </SelectTrigger>
@@ -189,7 +217,14 @@ export default function GuidesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                  <Loader2Icon className="inline animate-spin mr-2" size={16} />
+                  Chargement…
+                </TableCell>
+              </TableRow>
+            ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
                   Aucun guide trouvé.
@@ -279,7 +314,7 @@ export default function GuidesPage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="g-status">Statut</Label>
-              <Select value={draft.status} onValueChange={(v) => setDraft((prev) => ({ ...prev, status: v as Status }))}>
+              <Select value={draft.status} onValueChange={(v) => v != null && setDraft((prev) => ({ ...prev, status: v as Status }))}>
                 <SelectTrigger id="g-status" aria-label="Statut">
                   <SelectValue />
                 </SelectTrigger>
@@ -292,9 +327,11 @@ export default function GuidesPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Annuler</Button>
-            <Button onClick={handleCreate} disabled={!draft.title.trim()}>
-              Créer &amp; éditer
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
+              Annuler
+            </Button>
+            <Button onClick={handleCreate} disabled={!draft.title.trim() || creating}>
+              {creating ? <><Loader2Icon size={14} className="animate-spin" /> Création…</> : "Créer & éditer"}
             </Button>
           </DialogFooter>
         </DialogContent>
