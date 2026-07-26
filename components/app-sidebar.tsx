@@ -13,7 +13,7 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { GalleryVerticalEndIcon, ReceiptTextIcon, UsersIcon, LayoutDashboardIcon } from "lucide-react"
+import { GalleryVerticalEndIcon, ReceiptTextIcon, UsersIcon, LayoutDashboardIcon, BookOpenIcon } from "lucide-react"
 
 const data = {
   user: {
@@ -43,6 +43,11 @@ const data = {
       title: "Contacts",
       url: "/dashboard/contacts",
       icon: <UsersIcon />,
+    },
+    {
+      title: "Guides",
+      url: "/dashboard/guides",
+      icon: <BookOpenIcon />,
     },
   ],
 }
