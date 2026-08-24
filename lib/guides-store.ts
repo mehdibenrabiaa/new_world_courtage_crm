@@ -26,6 +26,8 @@ export type Guide = {
   reviewerName: string
   updatedDate: string
   readingTime: string
+  // Card image
+  imageUrl: string
   // Content
   blocks: Block[]
 }
@@ -49,6 +51,7 @@ function fromApi(p: any): Guide {
     reviewerName: p.reviewer_name ?? "",
     updatedDate: p.updated_date ?? "",
     readingTime: p.reading_time ?? "",
+    imageUrl: p.image_url ?? "",
     blocks: p.blocks ?? [],
   }
 }
@@ -67,6 +70,7 @@ function toApi(g: Omit<Guide, "id" | "createdAt">) {
     reviewer_name: g.reviewerName || null,
     updated_date: g.updatedDate || null,
     reading_time: g.readingTime || null,
+    image_url: g.imageUrl || null,
     blocks: g.blocks,
   }
 }
@@ -120,6 +124,17 @@ export async function saveGuide(guide: Guide): Promise<Guide> {
 export async function deleteGuide(id: number): Promise<void> {
   const res = await fetch(`${BASE}/api/guides/${id}`, { method: "DELETE" })
   if (!res.ok) throw new Error("Failed to delete guide")
+}
+
+export async function uploadGuideImage(guideId: number, file: File): Promise<Guide> {
+  const form = new FormData()
+  form.append("file", file)
+  const res = await fetch(`${BASE}/api/guides/${guideId}/image`, {
+    method: "POST",
+    body: form,
+  })
+  if (!res.ok) throw new Error("Failed to upload image")
+  return fromApi(await res.json())
 }
 
 // ─── Client-side helpers ─────────────────────────────────────────────────────

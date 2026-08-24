@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   DndContext, closestCenter, PointerSensor,
@@ -29,10 +29,13 @@ import {
 } from "@/components/ui/select"
 import {
   GripVerticalIcon, Trash2Icon, PlusIcon,
-  CheckIcon, ChevronLeftIcon, Loader2Icon,
+  CheckIcon, ChevronLeftIcon, Loader2Icon, HelpCircleIcon,
 } from "lucide-react"
 import {
-  getGuide, saveGuide, uid,
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  getGuide, saveGuide, uploadGuideImage, uid,
   type Guide, type Block, type SectionBlock,
   type AccentCardBlock, type AccentCardItem, type ParagraphBlock,
   type Status,
@@ -267,6 +270,8 @@ export default function GuideEditorPage() {
   const [guide, setGuide] = useState<Guide | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -362,6 +367,21 @@ export default function GuideEditorPage() {
     setGuide((prev) =>
       prev ? { ...prev, blocks: arrayMove(prev.blocks, oldIdx, newIdx) } : prev
     )
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !guide) return
+    setUploading(true)
+    try {
+      const updated = await uploadGuideImage(guide.id, file)
+      setGuide(updated)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
   }
 
   async function handleSave() {
@@ -487,6 +507,53 @@ export default function GuideEditorPage() {
                     placeholder="/assurance-transport/taxi/"
                     className="font-mono text-sm"
                   />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">Image de la carte</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <span className="inline-flex text-muted-foreground hover:text-foreground transition-colors cursor-default">
+                            <HelpCircleIcon size={13} />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[200px] text-center leading-relaxed">
+                          <p className="font-semibold">Dimensions recommandées</p>
+                          <p>800 × 500 px — ratio 8:5</p>
+                          <p className="text-muted-foreground">Minimum : 560 × 350 px</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  {guide.imageUrl && (
+                    <div className="w-full rounded-lg overflow-hidden border bg-muted aspect-[8/5]">
+                      <img
+                        src={guide.imageUrl}
+                        alt="Aperçu"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit"
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploading
+                      ? <><Loader2Icon size={14} className="animate-spin" /> Upload…</>
+                      : guide.imageUrl ? "Changer l'image" : "Choisir une image"}
+                  </Button>
                 </div>
               </div>
             </div>
