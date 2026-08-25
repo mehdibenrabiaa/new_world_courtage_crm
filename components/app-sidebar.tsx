@@ -13,7 +13,7 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { GalleryVerticalEndIcon, ReceiptTextIcon, UsersIcon, LayoutDashboardIcon, BookOpenIcon } from "lucide-react"
+import { ReceiptTextIcon, UsersIcon, LayoutDashboardIcon, BookOpenIcon, UserIcon, ImageIcon } from "lucide-react"
 
 const data = {
   user: {
@@ -24,19 +24,21 @@ const data = {
   teams: [
     {
       name: "New World Courtage",
-      logo: <GalleryVerticalEndIcon />,
+      logo: <img src="/nwc-logo-white.svg" alt="New World Courtage" className="size-full object-contain p-1.5" />,
       plan: "CRM",
     },
   ],
-  navMain: [
+  navGeneral: [
     {
       title: "Tableau de bord",
       url: "/dashboard",
       icon: <LayoutDashboardIcon />,
     },
+  ],
+  navCrm: [
     {
-      title: "Devis",
-      url: "/dashboard/devis",
+      title: "Leads",
+      url: "/dashboard/leads",
       icon: <ReceiptTextIcon />,
     },
     {
@@ -44,10 +46,22 @@ const data = {
       url: "/dashboard/contacts",
       icon: <UsersIcon />,
     },
+  ],
+  navContent: [
     {
       title: "Guides",
       url: "/dashboard/guides",
       icon: <BookOpenIcon />,
+    },
+    {
+      title: "Auteurs",
+      url: "/dashboard/authors",
+      icon: <UserIcon />,
+    },
+    {
+      title: "Média",
+      url: "/dashboard/media",
+      icon: <ImageIcon />,
     },
   ],
 }
@@ -59,7 +73,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain label="Général" items={data.navGeneral} />
+        <NavMain label="CRM" items={data.navCrm} />
+        <NavMain label="Contenu" items={data.navContent} />
         <NavQuestionnaires />
       </SidebarContent>
       <SidebarFooter>

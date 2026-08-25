@@ -19,8 +19,10 @@ import {
 import { ChevronRightIcon } from "lucide-react"
 
 export function NavMain({
+  label,
   items,
 }: {
+  label: string
   items: {
     title: string
     url: string
@@ -34,7 +36,7 @@ export function NavMain({
 }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) =>
           item.items?.length ? (

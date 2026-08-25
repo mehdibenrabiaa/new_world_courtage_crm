@@ -51,21 +51,21 @@ export default function DashboardPage() {
   }, [])
 
   const total = leads.length
-  const signed = leads.filter((l) => l.status === "signed").length
-  const conversion = total > 0 ? Math.round((signed / total) * 100) : 0
+  const converted = leads.filter((l) => l.status === "converted").length
+  const conversion = total > 0 ? Math.round((converted / total) * 100) : 0
   const unread = contacts.filter((c) => !c.read).length
 
   const kpis: KPI[] = [
     {
-      label: "Total devis",
+      label: "Total leads",
       value: loading ? "—" : total,
       sub: "leads enregistrés",
       icon: <ReceiptTextIcon size={16} />,
       color: "bg-blue-100 text-blue-600",
     },
     {
-      label: "Signés",
-      value: loading ? "—" : signed,
+      label: "Convertis",
+      value: loading ? "—" : converted,
       sub: "contrats conclus",
       icon: <CheckCircleIcon size={16} />,
       color: "bg-green-100 text-green-600",
@@ -120,8 +120,8 @@ export default function DashboardPage() {
               {recent.map((l) => (
                 <div key={l.id} className="flex items-center justify-between py-3 text-sm">
                   <div>
-                    <p className="font-medium">{l.first_name} {l.last_name}</p>
-                    <p className="text-muted-foreground text-xs">{l.lead_type} · {l.email}</p>
+                    <p className="font-medium">{l.name}</p>
+                    <p className="text-muted-foreground text-xs">{l.type} · {l.email ?? l.phone}</p>
                   </div>
                   <span className="text-xs text-muted-foreground">
                     {new Date(l.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}

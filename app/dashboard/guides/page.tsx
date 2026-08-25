@@ -33,17 +33,7 @@ import {
   getGuides, createGuide, deleteGuide, saveGuide,
   type Guide, type Status,
 } from "@/lib/guides-store"
-
-const CATEGORIES = [
-  "Flotte & Transport",
-  "Taxi",
-  "Ambulance",
-  "VTC",
-  "Pro de l'auto",
-  "Construction",
-  "Immobilier",
-  "Général",
-]
+import { CATEGORIES } from "@/lib/categories"
 
 const STATUS_STYLES: Record<Status, string> = {
   "Brouillon": "bg-gray-100 text-gray-600",
@@ -107,8 +97,8 @@ export default function GuidesPage() {
         status: draft.status,
         categoryHref: "",
         intro: "",
-        authorName: "Loubna Moucharref",
-        authorAvatar: "/team/loubna-moucharref.jpeg",
+        authorName: "",
+        authorAvatar: "",
         editorName: "",
         reviewerName: "",
         updatedDate: "",

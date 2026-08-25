@@ -128,3 +128,24 @@
     @apply font-sans;
   }
 }
+
+/* Mirrors the public site's brand tokens (new_world_courtage/global.css),
+   scoped so the guide block editor can render content in the site's own
+   look without leaking these values into the rest of the CRM's theme. */
+.site-preview {
+  --color-brand: #1961ae;
+  --color-brand-hover: rgb(1, 76, 138);
+  --color-light: #f3f5f7;
+  --color-text: #262626;
+  --radius: 5px;
+}
+
+/* Matches CtaButton.js's `.cta-btn` class exactly, so the CTA block editor
+   uses the site's real button styling instead of a lookalike. */
+.site-preview .cta-btn {
+  background-color: var(--color-brand);
+  border-radius: var(--radius);
+}
+.site-preview .cta-btn:hover {
+  background-color: var(--color-brand-hover);
+}

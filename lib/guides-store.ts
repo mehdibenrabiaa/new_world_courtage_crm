@@ -4,11 +4,16 @@ const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8001"
 
 export type Status = "Brouillon" | "Publié"
 
-export type SectionBlock = { id: string; type: "section"; title: string; content: string }
+export type SectionBlock = { id: string; type: "section"; title: string; content: string; titleFont: "sans" | "serif" }
 export type AccentCardItem = { id: string; heading: string; body: string }
 export type AccentCardBlock = { id: string; type: "accent-card"; title: string; cols: 1 | 2; items: AccentCardItem[] }
 export type ParagraphBlock = { id: string; type: "paragraph"; content: string }
-export type Block = SectionBlock | AccentCardBlock | ParagraphBlock
+export type CtaBlock = { id: string; type: "cta"; text: string; buttonLabel: string; href: string }
+export type BulletItem = { id: string; text: string }
+export type BulletCardBlock = { id: string; type: "bullet-card"; title: string; items: BulletItem[] }
+export type TableRow = { id: string; cells: string[] }
+export type TableBlock = { id: string; type: "table"; headers: string[]; rows: TableRow[] }
+export type Block = SectionBlock | AccentCardBlock | ParagraphBlock | CtaBlock | BulletCardBlock | TableBlock
 
 export type Guide = {
   id: number

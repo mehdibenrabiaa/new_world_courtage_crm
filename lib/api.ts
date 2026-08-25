@@ -1,3 +1,5 @@
+import type { Category } from "@/lib/categories"
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001"
 
@@ -132,23 +134,37 @@ async function backendRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
-export type LeadStatus = "new" | "contacted" | "quote_sent" | "signed" | "lost"
-export type LeadType = "taxi" | "ambulance" | "vtc" | "heavy_truck" | "body_shop" | "driving_school" | "car_dealership" | "construction" | "real_estate" | "other"
+// Matches app/models.py on the backend exactly — LeadStatus/LeadType enum
+// values and Lead's field names are not guessable from convention (e.g. a
+// single `name` field, not first/last; `type` not `lead_type`).
+export type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "lost"
+// A lead's category — same wording as the guide categories (see lib/categories.ts).
+export type LeadType = Category
 
 export type Lead = {
   id: number
-  first_name: string
-  last_name: string
-  email: string
-  phone: string
-  lead_type: LeadType
+  type: LeadType
   status: LeadStatus
+  name: string
+  phone: string
+  email: string | null
+  immat: string | null
+  naissance: string | null
+  permis: string | null
+  siret: string | null
+  activite: string | null
+  source: string | null
   notes: string | null
   created_at: string
   updated_at: string
 }
 
-export type LeadUpdate = Partial<Pick<Lead, "first_name" | "last_name" | "email" | "phone" | "lead_type" | "status" | "notes">>
+// The backend only allows updating these three fields on an existing lead —
+// name/phone/type are fixed at submission time.
+export type LeadUpdate = Partial<Pick<Lead, "status" | "notes" | "email">>
+
+export type LeadCreate = Pick<Lead, "type" | "name" | "phone"> &
+  Partial<Pick<Lead, "email" | "immat" | "naissance" | "permis" | "siret" | "activite" | "source">>
 
 export type Contact = {
   id: number
@@ -160,8 +176,18 @@ export type Contact = {
   created_at: string
 }
 
-export function listLeads() {
-  return backendRequest<Lead[]>("/api/leads")
+export function listLeads(params?: { status?: LeadStatus; limit?: number }) {
+  const url = new URL(`${BACKEND_URL}/api/leads/`)
+  if (params?.status) url.searchParams.set("status", params.status)
+  url.searchParams.set("limit", String(params?.limit ?? 200))
+  return backendRequest<Lead[]>(url.pathname + url.search)
+}
+
+export function createLead(payload: LeadCreate) {
+  return backendRequest<Lead>("/api/leads/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
 
 export function getLead(id: number) {
