@@ -59,8 +59,13 @@ function DialogContent({
         {...props}
       >
         {/* Rounding + clipping live on the popup itself; scrolling lives on this
-            inner wrapper so a visible scrollbar never squares off the corners. */}
-        <div className="grid gap-4 overflow-y-auto p-4">
+            inner wrapper so a visible scrollbar never squares off the corners.
+            max-h is repeated here (not inherited from the popup's own max-h)
+            because an implicit `auto` grid row sizes to its item's full content
+            height regardless of the grid container's max-height — the item
+            needs its own explicit cap to actually become scrollable instead of
+            just getting silently clipped by the popup's overflow-hidden. */}
+        <div className="grid max-h-[85vh] gap-4 overflow-y-auto p-4">
           {children}
         </div>
         {showCloseButton && (
