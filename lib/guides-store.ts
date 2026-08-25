@@ -1,4 +1,4 @@
-const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8001"
+const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000"
 
 // ─── Types (used across CRM) ─────────────────────────────────────────────────
 
@@ -10,7 +10,7 @@ export type AccentCardBlock = { id: string; type: "accent-card"; title: string; 
 export type ParagraphBlock = { id: string; type: "paragraph"; content: string }
 export type CtaBlock = { id: string; type: "cta"; text: string; buttonLabel: string; href: string }
 export type BulletItem = { id: string; text: string }
-export type BulletCardBlock = { id: string; type: "bullet-card"; title: string; items: BulletItem[] }
+export type BulletCardBlock = { id: string; type: "bullet-card"; title: string; topLine?: boolean; items: BulletItem[] }
 export type TableRow = { id: string; cells: string[] }
 export type TableBlock = { id: string; type: "table"; headers: string[]; rows: TableRow[] }
 export type Block = SectionBlock | AccentCardBlock | ParagraphBlock | CtaBlock | BulletCardBlock | TableBlock

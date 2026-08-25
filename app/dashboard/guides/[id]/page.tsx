@@ -224,16 +224,29 @@ function BulletCardEditor({
   onItemUpdate: (itemId: string, patch: Partial<BulletItem>) => void
   onItemDelete: (itemId: string) => void
 }) {
+  const showTopLine = block.topLine !== false
+
   return (
     <div className="overflow-hidden rounded-b-[var(--radius)]">
-      <div className="h-2 bg-[var(--color-brand)]" />
+      {showTopLine && <div className="h-2 bg-[var(--color-brand)]" />}
       <div className="bg-[var(--color-light)] p-6 flex flex-col gap-3">
-        <AutoGrowTextarea
-          value={block.title}
-          onChange={(title) => onUpdate({ title })}
-          placeholder="Titre de la liste (optionnel)…"
-          className="text-[15px] font-semibold text-[var(--color-text)] leading-snug"
-        />
+        <div className="flex items-center justify-between gap-3">
+          <AutoGrowTextarea
+            value={block.title}
+            onChange={(title) => onUpdate({ title })}
+            placeholder="Titre de la liste (optionnel)…"
+            className="flex-1 text-[15px] font-semibold text-[var(--color-text)] leading-snug"
+          />
+          <label className="flex items-center gap-1.5 shrink-0 cursor-pointer select-none text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={showTopLine}
+              onChange={(e) => onUpdate({ topLine: e.target.checked })}
+              className="accent-[var(--color-brand)]"
+            />
+            Ligne du haut
+          </label>
+        </div>
         <ul className="flex flex-col gap-1.5">
           {block.items.map((item) => (
             <li key={item.id} className="group/item flex items-start gap-2">
@@ -647,7 +660,7 @@ export default function GuideEditorPage() {
     } else if (type === "cta") {
       block = { id: uid(), type: "cta", text: "", buttonLabel: "Obtenir un devis", href: "contact" }
     } else if (type === "bullet-card") {
-      block = { id: uid(), type: "bullet-card", title: "", items: [{ id: uid(), text: "" }] }
+      block = { id: uid(), type: "bullet-card", title: "", topLine: true, items: [{ id: uid(), text: "" }] }
     } else if (type === "table") {
       block = {
         id: uid(), type: "table",
@@ -804,7 +817,7 @@ export default function GuideEditorPage() {
             Retour
           </Button>
           <Select
-            value={guide.status}
+            value={guide.status ?? "Brouillon"}
             onValueChange={(v) => v != null && updateField("status", v as Status)}
           >
             <SelectTrigger size="sm" className="w-32" aria-label="Statut">
@@ -918,7 +931,7 @@ export default function GuideEditorPage() {
 
             {/* Hero — mirrors ArticleHero.js on the live site */}
             <div className="flex flex-col gap-5">
-              <Select value={guide.category} onValueChange={(v) => v != null && updateField("category", v)}>
+              <Select value={guide.category ?? ""} onValueChange={(v) => v != null && updateField("category", v)}>
                 <SelectTrigger
                   aria-label="Catégorie"
                   className="h-auto w-fit gap-1 rounded-none border-0 bg-transparent p-0 text-sm font-semibold text-gray-500 shadow-none hover:text-gray-700 [&_svg]:size-3.5"
@@ -971,7 +984,7 @@ export default function GuideEditorPage() {
                         </div>
                       ) : (
                         <Select
-                          value={guide.authorName || undefined}
+                          value={guide.authorName || ""}
                           onValueChange={(v) => {
                             if (v == null) return
                             if (v === "__custom__") {
@@ -1096,7 +1109,7 @@ export default function GuideEditorPage() {
                   <div className="hidden sm:block" aria-hidden="true" />
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-semibold text-[var(--color-text)]">Temps de lecture</span>
-                    <Select value={guide.readingTime || undefined} onValueChange={(v) => v != null && updateField("readingTime", v)}>
+                    <Select value={guide.readingTime || ""} onValueChange={(v) => v != null && updateField("readingTime", v)}>
                       <SelectTrigger aria-label="Temps de lecture" className="h-auto w-fit gap-1 rounded-none border-0 bg-transparent p-0 text-xs text-gray-600 shadow-none [&_svg]:size-3">
                         <SelectValue placeholder="Choisir…" />
                       </SelectTrigger>

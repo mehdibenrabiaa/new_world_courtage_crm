@@ -1,7 +1,7 @@
 import type { Category } from "@/lib/categories"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
 
 export type Option = {
   id: number
