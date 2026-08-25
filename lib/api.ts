@@ -159,9 +159,7 @@ export type Lead = {
   updated_at: string
 }
 
-// The backend only allows updating these three fields on an existing lead —
-// name/phone/type are fixed at submission time.
-export type LeadUpdate = Partial<Pick<Lead, "status" | "notes" | "email">>
+export type LeadUpdate = Partial<Pick<Lead, "status" | "name" | "phone" | "email" | "type" | "immat" | "naissance" | "permis" | "siret" | "activite" | "notes">>
 
 export type LeadCreate = Pick<Lead, "type" | "name" | "phone"> &
   Partial<Pick<Lead, "email" | "immat" | "naissance" | "permis" | "siret" | "activite" | "source">>
