@@ -8,6 +8,8 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
 } from "@dnd-kit/core"
 import {
   SortableContext,
@@ -160,7 +162,7 @@ function SortableRow({
 }: {
   id: number
   disabled?: boolean
-  children: (handle: { attributes: Record<string, unknown>; listeners: Record<string, unknown> | undefined }) => React.ReactNode
+  children: (handle: { attributes: DraggableAttributes; listeners: DraggableSyntheticListeners }) => React.ReactNode
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
   const style = {
@@ -646,7 +648,7 @@ export default function QuestionnairePage({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="q-type">Type</Label>
-              <Select items={TYPE_LABELS} value={draft.type} onValueChange={(v) => setDraft((d) => ({ ...d, type: v }))}>
+              <Select items={TYPE_LABELS} value={draft.type} onValueChange={(v) => v && setDraft((d) => ({ ...d, type: v }))}>
                 <SelectTrigger id="q-type" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -667,7 +669,7 @@ export default function QuestionnairePage({
                   <Select
                     items={INPUT_TYPE_LABELS}
                     value={draft.input_type}
-                    onValueChange={(v) => setDraft((d) => ({ ...d, input_type: v }))}
+                    onValueChange={(v) => v && setDraft((d) => ({ ...d, input_type: v }))}
                   >
                     <SelectTrigger id="q-input-type" className="w-full">
                       <SelectValue />
@@ -786,7 +788,7 @@ export default function QuestionnairePage({
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground shrink-0 w-4">=</span>
                       {sourceQuestion && sourceQuestion.options.length > 0 ? (
-                        <Select items={valueItems} value={r.value || null} onValueChange={(v) => updateRuleRow(r.localId, { value: v })}>
+                        <Select items={valueItems} value={r.value || null} onValueChange={(v) => v !== null && updateRuleRow(r.localId, { value: v })}>
                           <SelectTrigger className="flex-1 min-w-0">
                             <SelectValue placeholder="Valeur…" />
                           </SelectTrigger>
@@ -815,7 +817,7 @@ export default function QuestionnairePage({
                       <Select
                         items={RULE_ACTION_LABELS}
                         value={r.action}
-                        onValueChange={(v) => updateRuleRow(r.localId, { action: v })}
+                        onValueChange={(v) => v !== null && updateRuleRow(r.localId, { action: v })}
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue />

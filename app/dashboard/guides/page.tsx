@@ -97,6 +97,7 @@ export default function GuidesPage() {
         status: draft.status,
         categoryHref: "",
         intro: "",
+        imageUrl: "",
         authorName: "",
         authorAvatar: "",
         editorName: "",
