@@ -1,4 +1,4 @@
-const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8001"
+const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000"
 
 export type Author = {
   id: number
