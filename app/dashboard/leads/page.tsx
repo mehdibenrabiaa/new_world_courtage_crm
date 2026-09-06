@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -15,7 +16,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Table,
   TableBody,
@@ -51,7 +51,7 @@ import {
 import { useToastManager } from "@/components/ui/toast"
 import { MoreHorizontalIcon, PencilIcon, Trash2Icon, Loader2Icon, PlusIcon } from "lucide-react"
 import {
-  listLeads, updateLead, deleteLead, createLead,
+  listLeads, deleteLead, createLead,
   type Lead, type LeadStatus, type LeadType, type LeadCreate,
 } from "@/lib/api"
 import { CATEGORIES } from "@/lib/categories"
@@ -80,20 +80,6 @@ function formatDate(iso: string) {
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50]
 
-type Draft = {
-  status: LeadStatus
-  name: string
-  phone: string
-  email: string
-  type: LeadType
-  immat: string
-  naissance: string
-  permis: string
-  siret: string
-  activite: string
-  notes: string
-}
-
 type NewLead = {
   type: LeadType
   name: string
@@ -112,11 +98,9 @@ const EMPTY_NEW_LEAD: NewLead = {
 }
 
 export default function LeadsPage() {
+  const router = useRouter()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState<Lead | null>(null)
-  const [draft, setDraft] = useState<Draft>({ status: "new", name: "", phone: "", email: "", type: CATEGORIES[0], immat: "", naissance: "", permis: "", siret: "", activite: "", notes: "" })
-  const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null)
   const [deleting, setDeleting] = useState(false)
   const toastManager = useToastManager()
@@ -155,49 +139,8 @@ export default function LeadsPage() {
     setPage(1)
   }
 
-  function openEdit(l: Lead) {
-    setEditing(l)
-    setDraft({
-      status: l.status,
-      name: l.name,
-      phone: l.phone,
-      email: l.email ?? "",
-      type: l.type,
-      immat: l.immat ?? "",
-      naissance: l.naissance ?? "",
-      permis: l.permis ?? "",
-      siret: l.siret ?? "",
-      activite: l.activite ?? "",
-      notes: l.notes ?? "",
-    })
-  }
-
-  async function handleSave() {
-    if (!editing) return
-    setSaving(true)
-    try {
-      const updated = await updateLead(editing.id, {
-        status: draft.status,
-        name: draft.name.trim() || undefined,
-        phone: draft.phone.trim() || undefined,
-        email: draft.email.trim() || undefined,
-        type: draft.type,
-        immat: draft.immat.trim() || undefined,
-        naissance: draft.naissance.trim() || undefined,
-        permis: draft.permis.trim() || undefined,
-        siret: draft.siret.trim() || undefined,
-        activite: draft.activite.trim() || undefined,
-        notes: draft.notes.trim() || undefined,
-      })
-      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
-      setEditing(null)
-      toastManager.add({ title: "Lead mis à jour", type: "success" })
-    } catch (err) {
-      console.error(err)
-      toastManager.add({ title: "Impossible de mettre à jour ce lead", type: "error" })
-    } finally {
-      setSaving(false)
-    }
+  function openLead(l: Lead) {
+    router.push(`/dashboard/leads/${l.id}`)
   }
 
   async function confirmDelete() {
@@ -331,7 +274,7 @@ export default function LeadsPage() {
                 </TableCell>
               </TableRow>
             ) : paginated.map((l) => (
-              <TableRow key={l.id} className="cursor-pointer" onClick={() => openEdit(l)}>
+              <TableRow key={l.id} className="cursor-pointer" onClick={() => openLead(l)}>
                 <TableCell className="font-medium">{l.name}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   <div>{l.phone}</div>
@@ -358,7 +301,7 @@ export default function LeadsPage() {
                       }
                     />
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEdit(l)}>
+                      <DropdownMenuItem onClick={() => openLead(l)}>
                         <PencilIcon />
                         Modifier
                       </DropdownMenuItem>
@@ -419,154 +362,6 @@ export default function LeadsPage() {
           </div>
         </div>
       </div>
-
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing?.name}</DialogTitle>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="l-status">Statut</Label>
-              <Select value={draft.status} onValueChange={(v) => v != null && setDraft((p) => ({ ...p, status: v as LeadStatus }))}>
-                <SelectTrigger id="l-status" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="l-type">Catégorie</Label>
-              <Select value={draft.type} onValueChange={(v) => v != null && setDraft((p) => ({ ...p, type: v as LeadType }))}>
-                <SelectTrigger id="l-type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="l-name">Nom</Label>
-                <Input
-                  id="l-name"
-                  value={draft.name}
-                  onChange={(e) => setDraft((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="Karim Belkacem"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="l-phone">Téléphone</Label>
-                <Input
-                  id="l-phone"
-                  value={draft.phone}
-                  onChange={(e) => setDraft((p) => ({ ...p, phone: e.target.value }))}
-                  placeholder="06 12 34 56 78"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="l-email">Email</Label>
-              <Input
-                id="l-email"
-                value={draft.email}
-                onChange={(e) => setDraft((p) => ({ ...p, email: e.target.value }))}
-                placeholder="client@email.com"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-medium text-muted-foreground">Détails véhicule</span>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="l-immat">Immatriculation</Label>
-                  <Input
-                    id="l-immat"
-                    value={draft.immat}
-                    onChange={(e) => setDraft((p) => ({ ...p, immat: e.target.value }))}
-                    placeholder="AB-123-CD"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="l-naissance">Naissance</Label>
-                  <Input
-                    id="l-naissance"
-                    value={draft.naissance}
-                    onChange={(e) => setDraft((p) => ({ ...p, naissance: e.target.value }))}
-                    placeholder="MM/AAAA"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="l-permis">Permis</Label>
-                  <Input
-                    id="l-permis"
-                    value={draft.permis}
-                    onChange={(e) => setDraft((p) => ({ ...p, permis: e.target.value }))}
-                    placeholder="MM/AAAA"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-medium text-muted-foreground">Détails entreprise</span>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="l-siret">SIRET</Label>
-                  <Input
-                    id="l-siret"
-                    value={draft.siret}
-                    onChange={(e) => setDraft((p) => ({ ...p, siret: e.target.value }))}
-                    placeholder="123 456 789 00012"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="l-activite">Activité</Label>
-                  <Input
-                    id="l-activite"
-                    value={draft.activite}
-                    onChange={(e) => setDraft((p) => ({ ...p, activite: e.target.value }))}
-                    placeholder="Construction"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {editing?.source && (
-              <div className="text-xs text-muted-foreground">
-                <span className="font-medium">Source :</span> {editing.source}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="l-notes">Notes</Label>
-              <Textarea
-                id="l-notes"
-                value={draft.notes}
-                onChange={(e) => setDraft((p) => ({ ...p, notes: e.target.value }))}
-                placeholder="Notes internes sur ce lead…"
-                className="resize-none min-h-[80px]"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)} disabled={saving}>
-              Annuler
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? <><Loader2Icon size={14} className="animate-spin" /> Enregistrement…</> : "Enregistrer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={(open) => !open && setCreateOpen(false)}>

@@ -32,15 +32,11 @@ const MONTHS: [string, string][] = [
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: CURRENT_YEAR - 1959 }, (_, i) => String(CURRENT_YEAR - i))
 
-// Mirrors CarInsuranceForm.js's skip-logic so the preview matches the live site.
-function isStepSkipped(step: Question, answers: Record<number, Answer>) {
-  if (!step.rules || step.rules.length === 0) return false
-  return step.rules.some((rule) => {
-    if (rule.action !== "skip") return false
-    const sourceValue = answers[rule.source_question_id]
-    if (rule.operator === "not_equals") return sourceValue !== rule.value
-    return sourceValue === rule.value
-  })
+// Questionnaires no longer carry per-question skip rules (hardcoded catalog
+// questions are always shown when included) — kept as a no-op so
+// findVisibleStepIndex below doesn't need its own separate code path.
+function isStepSkipped(_step: Question, _answers: Record<number, Answer>) {
+  return false
 }
 
 function findVisibleStepIndex(steps: Question[], fromIdx: number, dir: 1 | -1, answers: Record<number, Answer>) {
@@ -204,7 +200,7 @@ export function QuestionnairePreview({
                             const selected = answer === o.value
                             return (
                               <label
-                                key={o.id}
+                                key={o.value}
                                 className={`flex items-center justify-between gap-3 rounded-md border p-4 cursor-pointer transition-colors ${
                                   selected
                                     ? "border-[var(--color-brand)] bg-[var(--color-brand)]/5"
@@ -231,7 +227,7 @@ export function QuestionnairePreview({
                             const selected = answer === o.value
                             return (
                               <label
-                                key={o.id}
+                                key={o.value}
                                 className="flex items-center gap-2.5 cursor-pointer"
                                 onClick={() => selectAndAdvance(step.id, o.value)}
                               >
@@ -252,7 +248,7 @@ export function QuestionnairePreview({
                           const selected = list.includes(o.value)
                           return (
                             <label
-                              key={o.id}
+                              key={o.value}
                               className="flex items-center gap-2.5 cursor-pointer group"
                               onClick={() =>
                                 setAnswer(step.id, selected ? list.filter((v) => v !== o.value) : [...list, o.value])
@@ -291,7 +287,7 @@ export function QuestionnairePreview({
                           >
                             <option value="" disabled>Sélectionnez une option</option>
                             {step.options.map((o) => (
-                              <option key={o.id} value={o.value}>{o.label}</option>
+                              <option key={o.value} value={o.value}>{o.label}</option>
                             ))}
                           </select>
                           <ChevronDownIcon size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -374,7 +370,7 @@ export function QuestionnairePreview({
                           type={step.input_type || "text"}
                           placeholder={step.placeholder || ""}
                           value={typeof answer === "string" ? answer : ""}
-                          onChange={(e) => setAnswer(step.id, step.uppercase ? e.target.value.toUpperCase() : e.target.value)}
+                          onChange={(e) => setAnswer(step.id, e.target.value)}
                           className={`max-w-sm w-full h-[50px] rounded-md border bg-white px-3 text-sm text-[rgba(0,0,0,0.88)] shadow-xs outline-none transition-colors focus-visible:border-[var(--color-brand)] ${
                             error ? "border-[var(--color-error)]" : "border-gray-200"
                           }`}

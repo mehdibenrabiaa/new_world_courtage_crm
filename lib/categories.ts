@@ -7,6 +7,7 @@ export const CATEGORIES = [
   "Assurance Ambulance",
   "Assurance VTC",
   "Assurance Pro de l'auto",
+  "Assurance Garage",
   "Assurance Construction",
   "Assurance Immobilier",
   "Assurance Général",

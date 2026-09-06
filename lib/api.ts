@@ -2,42 +2,45 @@ import type { Category } from "@/lib/categories"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
 
-export type Option = {
-  id: number
+export type CatalogOption = {
   label: string
   value: string
-  order: number
 }
 
-export type Rule = {
-  id: number
-  question_id: number
-  source_question_id: number
-  operator: "equals" | "not_equals"
-  value: string
-  action: "skip"
+// A question's identity (key/type/options) is fixed in the backend's
+// app/question_catalog.py — the CRM can only include/exclude a catalog entry
+// in a questionnaire and override its wording (see Question below).
+export type CatalogEntry = {
+  key: string
+  section: string | null
+  eyebrow: string | null
+  type: "radio" | "select" | "input" | "checkbox"
+  input_type: string | null
+  question: string
+  hint: string | null
+  placeholder: string | null
+  required: boolean
+  card: boolean
+  options: CatalogOption[]
 }
 
 export type Question = {
   id: number
   questionnaire_id: number
-  key: string | null
-  question: string
+  catalog_key: string
+  key: string
   section: string | null
   eyebrow: string | null
   type: "radio" | "select" | "input" | "checkbox"
   input_type: string | null
-  placeholder: string | null
+  question: string
   hint: string | null
+  placeholder: string | null
   required: boolean
   card: boolean
-  uppercase: boolean
-  option_cols: number | null
   order: number
-  status: "draft" | "published"
-  draft_of_id: number | null
-  options: Option[]
-  rules: Rule[]
+  options: CatalogOption[]
+  orphaned: boolean
 }
 
 export type Questionnaire = {
@@ -45,24 +48,6 @@ export type Questionnaire = {
   slug: string
   name: string
   questions: Question[]
-}
-
-export type QuestionInput = {
-  key: string | null
-  question: string
-  section: string | null
-  eyebrow: string | null
-  type: string
-  input_type: string | null
-  placeholder: string | null
-  hint: string | null
-  required: boolean
-  card: boolean
-  uppercase: boolean
-  option_cols: number | null
-  order: number
-  options: { label: string; value: string; order: number }[]
-  rules: { source_question_id: number; operator: string; value: string; action: string }[]
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -86,35 +71,44 @@ export function getQuestionnaire(slug: string) {
   return request<Questionnaire>(`/questionnaires/${slug}`)
 }
 
-export function createQuestion(slug: string, payload: QuestionInput) {
-  return request<Question>(`/questionnaires/${slug}/questions`, {
+export function createQuestionnaire(slug: string, name: string) {
+  return request<Questionnaire>("/questionnaires", {
     method: "POST",
+    body: JSON.stringify({ slug, name }),
+  })
+}
+
+export function updateQuestionnaire(slug: string, payload: { slug?: string; name?: string }) {
+  return request<Questionnaire>(`/questionnaires/${slug}`, {
+    method: "PATCH",
     body: JSON.stringify(payload),
   })
 }
 
-export function updateQuestion(questionId: number, payload: QuestionInput) {
+export function listAvailableCatalogEntries(slug: string) {
+  return request<CatalogEntry[]>(`/questionnaires/${slug}/catalog`)
+}
+
+export function addQuestion(slug: string, catalogKey: string, order: number) {
+  return request<Question>(`/questionnaires/${slug}/questions`, {
+    method: "POST",
+    body: JSON.stringify({ catalog_key: catalogKey, order }),
+  })
+}
+
+export function updateQuestionWording(
+  questionId: number,
+  payload: { question?: string; hint?: string; placeholder?: string; order?: number }
+) {
   return request<Question>(`/questionnaires/questions/${questionId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   })
 }
 
-export function deleteQuestion(questionId: number) {
+export function removeQuestion(questionId: number) {
   return request<void>(`/questionnaires/questions/${questionId}`, {
     method: "DELETE",
-  })
-}
-
-export function publishQuestion(questionId: number) {
-  return request<Question>(`/questionnaires/questions/${questionId}/publish`, {
-    method: "POST",
-  })
-}
-
-export function publishQuestionnaire(slug: string) {
-  return request<Questionnaire>(`/questionnaires/${slug}/publish`, {
-    method: "POST",
   })
 }
 
@@ -140,6 +134,13 @@ export type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "lost
 // A lead's category — same wording as the guide categories (see lib/categories.ts).
 export type LeadType = Category
 
+export type LeadAnswer = {
+  id: number
+  catalog_key: string
+  question: string
+  value: string
+}
+
 export type Lead = {
   id: number
   type: LeadType
@@ -154,6 +155,7 @@ export type Lead = {
   activite: string | null
   source: string | null
   notes: string | null
+  answers: LeadAnswer[]
   created_at: string
   updated_at: string
 }
@@ -161,7 +163,8 @@ export type Lead = {
 export type LeadUpdate = Partial<Pick<Lead, "status" | "name" | "phone" | "email" | "type" | "immat" | "naissance" | "permis" | "siret" | "activite" | "notes">>
 
 export type LeadCreate = Pick<Lead, "type" | "name" | "phone"> &
-  Partial<Pick<Lead, "email" | "immat" | "naissance" | "permis" | "siret" | "activite" | "source">>
+  Partial<Pick<Lead, "email" | "immat" | "naissance" | "permis" | "siret" | "activite" | "source" | "notes">> &
+  Partial<{ answers: Pick<LeadAnswer, "catalog_key" | "question" | "value">[] }>
 
 export type Contact = {
   id: number
