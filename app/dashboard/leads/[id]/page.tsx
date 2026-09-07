@@ -1,7 +1,7 @@
 "use client"
 
 import { use, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -45,10 +45,26 @@ function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 }
 
+const TAB_VALUES = ["contact", "vehicule", "entreprise", "reponses", "statut", "notes", "taches"]
+
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const toastManager = useToastManager()
+
+  // Keep the selected tab in the URL (?tab=…) so a refresh (or a shared
+  // link) lands back on the same tab instead of resetting to Contact.
+  const tabParam = searchParams.get("tab")
+  const activeTab = tabParam && TAB_VALUES.includes(tabParam) ? tabParam : "contact"
+
+  function handleTabChange(value: unknown) {
+    if (typeof value !== "string") return
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", value)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
 
   const [lead, setLead] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
@@ -156,7 +172,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            <Tabs defaultValue="contact" className="w-full">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
               <TabsList>
                 <TabsIndicator />
                 <GarageLeadFieldsTriggers hasAnswers={lead.answers.length > 0} />

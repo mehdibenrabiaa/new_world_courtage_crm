@@ -8,6 +8,7 @@ import { TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { fetchQuestionnaireQuestions, type Lead, type LeadAnswer, type LeadStatus, type LeadType, type PublishedQuestion } from "@/lib/api"
 import { CATEGORIES } from "@/lib/categories"
 
@@ -54,18 +55,20 @@ function parseVehicleList(value: string): { fields: VehicleField[] }[] {
 // nested "Véhicule N" / field bullets are rendered.
 function FleetVehicleList({ vehicles }: { vehicles: { fields: VehicleField[] }[] }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 text-sm">
       {vehicles.map((vehicle, i) => (
         <div key={i} className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-muted-foreground">Véhicule {i + 1}</span>
-          <ul className="flex flex-col gap-1 pl-4 list-disc marker:text-muted-foreground">
-            {vehicle.fields.map((f, j) => (
-              <li key={j} className="font-medium">
-                <span className="text-muted-foreground font-normal">{f.label} : </span>
-                {f.value}
-              </li>
-            ))}
-          </ul>
+          <Table containerClassName="pl-6">
+            <TableBody>
+              {vehicle.fields.map((f, j) => (
+                <TableRow key={j} className="border-0 hover:bg-transparent">
+                  <TableCell className="w-1/3 whitespace-normal p-1 text-muted-foreground">{f.label}</TableCell>
+                  <TableCell className="whitespace-normal p-1 font-medium">{f.value}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       ))}
     </div>
@@ -199,7 +202,7 @@ export function GarageLeadFieldsTriggers({ hasAnswers }: { hasAnswers: boolean }
   return (
     <Fragment>
       <TabsTrigger value="contact">Contact</TabsTrigger>
-      <TabsTrigger value="vehicule">Véhicule</TabsTrigger>
+      <TabsTrigger value="vehicule">Véhicules</TabsTrigger>
       <TabsTrigger value="entreprise">Entreprise</TabsTrigger>
       {hasAnswers && <TabsTrigger value="reponses">Réponses</TabsTrigger>}
       <TabsTrigger value="statut">Statut</TabsTrigger>
@@ -230,16 +233,16 @@ export function GarageLeadFields({
       <TabsContent value="contact" className="rounded-xl border p-5 flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-4">
           <Field>
-            <FieldLabel>Nom</FieldLabel>
+            <FieldLabel className="font-normal text-muted-foreground">Nom</FieldLabel>
             <FieldTitle>{draft.name || "—"}</FieldTitle>
           </Field>
           <Field>
-            <FieldLabel>Téléphone</FieldLabel>
+            <FieldLabel className="font-normal text-muted-foreground">Téléphone</FieldLabel>
             <FieldTitle>{draft.phone || "—"}</FieldTitle>
           </Field>
         </div>
         <Field>
-          <FieldLabel>Email</FieldLabel>
+          <FieldLabel className="font-normal text-muted-foreground">Email</FieldLabel>
           <FieldTitle>{draft.email || "—"}</FieldTitle>
         </Field>
       </TabsContent>
@@ -247,7 +250,12 @@ export function GarageLeadFields({
       <TabsContent value="vehicule" className="rounded-xl border p-5">
         {fleetAnswer && !isCorruptedLegacyValue(fleetAnswer.value) ? (
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-black">{fleetAnswer.question}</span>
+            <span
+              className="text-xs font-semibold uppercase tracking-wide text-black"
+              style={{ backgroundColor: "#f4f4f4", padding: "8px 5px" }}
+            >
+              {fleetAnswer.question}
+            </span>
             <FleetVehicleList vehicles={parseVehicleList(fleetAnswer.value)} />
           </div>
         ) : (
@@ -258,11 +266,11 @@ export function GarageLeadFields({
       <TabsContent value="entreprise" className="rounded-xl border p-5">
         <div className="grid grid-cols-2 gap-4">
           <Field>
-            <FieldLabel>SIRET</FieldLabel>
+            <FieldLabel className="font-normal text-muted-foreground">SIRET</FieldLabel>
             <FieldTitle>{draft.siret || "—"}</FieldTitle>
           </Field>
           <Field>
-            <FieldLabel>Activité</FieldLabel>
+            <FieldLabel className="font-normal text-muted-foreground">Activité</FieldLabel>
             <FieldTitle>{draft.activite || "—"}</FieldTitle>
           </Field>
         </div>
@@ -272,7 +280,12 @@ export function GarageLeadFields({
         <TabsContent value="reponses" className="rounded-xl border p-5 flex flex-col gap-5">
           {sections.map(({ section, answers }) => (
             <div key={section} className="flex flex-col gap-1.5">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-black">{section}</h3>
+              <h3
+                className="text-xs font-semibold uppercase tracking-wide text-black"
+                style={{ backgroundColor: "#f4f4f4", padding: "8px 5px" }}
+              >
+                {section}
+              </h3>
               <div className="flex flex-col divide-y">
                 {answers.map((a) => (
                   <div key={a.id} className={`flex gap-4 py-2.5 text-sm ${a.isVehicleList && !isCorruptedLegacyValue(a.value) ? "flex-col" : "items-center justify-between"}`}>
