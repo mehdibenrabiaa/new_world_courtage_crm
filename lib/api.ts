@@ -1,6 +1,8 @@
 import type { Category } from "@/lib/categories"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+// Trailing slash stripped so a production env var set with one doesn't
+// double up with the leading "/" on every call below.
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000").replace(/\/+$/, "")
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
