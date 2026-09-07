@@ -3,7 +3,6 @@
 import * as React from "react"
 
 import { NavMain } from "@/components/nav-main"
-import { NavQuestionnaires } from "@/components/nav-questionnaires"
 import { NavUser } from "@/components/nav-user"
 import { TeamSwitcher } from "@/components/team-switcher"
 import {
@@ -76,7 +75,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain label="Général" items={data.navGeneral} />
         <NavMain label="CRM" items={data.navCrm} />
         <NavMain label="Contenu" items={data.navContent} />
-        <NavQuestionnaires />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

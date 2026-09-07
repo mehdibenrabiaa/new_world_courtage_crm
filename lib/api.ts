@@ -2,54 +2,6 @@ import type { Category } from "@/lib/categories"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
 
-export type CatalogOption = {
-  label: string
-  value: string
-}
-
-// A question's identity (key/type/options) is fixed in the backend's
-// app/question_catalog.py — the CRM can only include/exclude a catalog entry
-// in a questionnaire and override its wording (see Question below).
-export type CatalogEntry = {
-  key: string
-  section: string | null
-  eyebrow: string | null
-  type: "radio" | "select" | "input" | "checkbox"
-  input_type: string | null
-  question: string
-  hint: string | null
-  placeholder: string | null
-  required: boolean
-  card: boolean
-  options: CatalogOption[]
-}
-
-export type Question = {
-  id: number
-  questionnaire_id: number
-  catalog_key: string
-  key: string
-  section: string | null
-  eyebrow: string | null
-  type: "radio" | "select" | "input" | "checkbox"
-  input_type: string | null
-  question: string
-  hint: string | null
-  placeholder: string | null
-  required: boolean
-  card: boolean
-  order: number
-  options: CatalogOption[]
-  orphaned: boolean
-}
-
-export type Questionnaire = {
-  id: number
-  slug: string
-  name: string
-  questions: Question[]
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -61,55 +13,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (res.status === 204) return undefined as T
   return res.json()
-}
-
-export function listQuestionnaires() {
-  return request<Questionnaire[]>("/questionnaires")
-}
-
-export function getQuestionnaire(slug: string) {
-  return request<Questionnaire>(`/questionnaires/${slug}`)
-}
-
-export function createQuestionnaire(slug: string, name: string) {
-  return request<Questionnaire>("/questionnaires", {
-    method: "POST",
-    body: JSON.stringify({ slug, name }),
-  })
-}
-
-export function updateQuestionnaire(slug: string, payload: { slug?: string; name?: string }) {
-  return request<Questionnaire>(`/questionnaires/${slug}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  })
-}
-
-export function listAvailableCatalogEntries(slug: string) {
-  return request<CatalogEntry[]>(`/questionnaires/${slug}/catalog`)
-}
-
-export function addQuestion(slug: string, catalogKey: string, order: number) {
-  return request<Question>(`/questionnaires/${slug}/questions`, {
-    method: "POST",
-    body: JSON.stringify({ catalog_key: catalogKey, order }),
-  })
-}
-
-export function updateQuestionWording(
-  questionId: number,
-  payload: { question?: string; hint?: string; placeholder?: string; order?: number }
-) {
-  return request<Question>(`/questionnaires/questions/${questionId}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  })
-}
-
-export function removeQuestion(questionId: number) {
-  return request<void>(`/questionnaires/questions/${questionId}`, {
-    method: "DELETE",
-  })
 }
 
 // ── Backend API (leads + contacts) ────────────────────────────────────────────
