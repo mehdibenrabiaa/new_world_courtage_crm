@@ -254,7 +254,6 @@ export default function LeadsPage() {
               <TableHead className="sticky top-0 z-10 bg-background">Contact</TableHead>
               <TableHead className="sticky top-0 z-10 bg-background">Catégorie</TableHead>
               <TableHead className="sticky top-0 z-10 bg-background">Statut</TableHead>
-              <TableHead className="sticky top-0 z-10 bg-background">Source</TableHead>
               <TableHead className="sticky top-0 z-10 bg-background">Créé le</TableHead>
               <TableHead className="sticky top-0 z-10 w-10 bg-background" />
             </TableRow>
@@ -262,14 +261,14 @@ export default function LeadsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
                   <Loader2Icon className="inline animate-spin mr-2" size={16} />
                   Chargement…
                 </TableCell>
               </TableRow>
             ) : paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
                   Aucun lead trouvé.
                 </TableCell>
               </TableRow>
@@ -285,9 +284,6 @@ export default function LeadsPage() {
                   <Badge variant="secondary" className={STATUS_STYLES[l.status]}>
                     {STATUS_LABELS[l.status]}
                   </Badge>
-                </TableCell>
-                <TableCell className="max-w-[160px] truncate text-xs text-muted-foreground" title={l.source ?? ""}>
-                  {l.source ?? "—"}
                 </TableCell>
                 <TableCell>{formatDate(l.created_at)}</TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>

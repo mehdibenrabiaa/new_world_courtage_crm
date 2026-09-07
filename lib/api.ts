@@ -44,6 +44,24 @@ export type LeadAnswer = {
   value: string
 }
 
+export type NoteColor = "yellow" | "pink" | "blue" | "green" | "purple" | "orange"
+
+export type LeadNote = {
+  id: number
+  content: string
+  color: NoteColor
+  created_at: string
+}
+
+export type LeadTask = {
+  id: number
+  comment: string
+  action: string
+  due_date: string
+  completed: boolean
+  created_at: string
+}
+
 export type Lead = {
   id: number
   type: LeadType
@@ -57,16 +75,17 @@ export type Lead = {
   siret: string | null
   activite: string | null
   source: string | null
-  notes: string | null
+  sticky_notes: LeadNote[]
+  tasks: LeadTask[]
   answers: LeadAnswer[]
   created_at: string
   updated_at: string
 }
 
-export type LeadUpdate = Partial<Pick<Lead, "status" | "name" | "phone" | "email" | "type" | "immat" | "naissance" | "permis" | "siret" | "activite" | "notes">>
+export type LeadUpdate = Partial<Pick<Lead, "status" | "name" | "phone" | "email" | "type" | "immat" | "naissance" | "permis" | "siret" | "activite">>
 
 export type LeadCreate = Pick<Lead, "type" | "name" | "phone"> &
-  Partial<Pick<Lead, "email" | "immat" | "naissance" | "permis" | "siret" | "activite" | "source" | "notes">> &
+  Partial<Pick<Lead, "email" | "immat" | "naissance" | "permis" | "siret" | "activite" | "source">> &
   Partial<{ answers: Pick<LeadAnswer, "catalog_key" | "question" | "value">[] }>
 
 export type Contact = {
@@ -77,6 +96,41 @@ export type Contact = {
   message: string
   read: boolean
   created_at: string
+}
+
+// A snapshot taken when the lead was created — kept in its own table so it
+// survives even if the lead is later deleted (lead_id then reads null).
+export type LeadContact = {
+  id: number
+  lead_id: number | null
+  lead_deleted: boolean
+  name: string
+  phone: string
+  email: string | null
+  address: string | null
+  created_at: string
+}
+
+export function listLeadContacts() {
+  return backendRequest<LeadContact[]>("/api/leads/contacts")
+}
+
+// The published, ordered questions for a questionnaire (e.g. "garage") —
+// used to group/sort a lead's saved answers the same way the public site's
+// form presents them (by section, in section/question order).
+export type PublishedQuestion = {
+  id: number
+  key: string
+  section: string | null
+  question: string
+  order: number
+  type: string
+  input_type: string | null
+  unit: string | null
+}
+
+export function fetchQuestionnaireQuestions(slug: string) {
+  return backendRequest<PublishedQuestion[]>(`/questionnaires/${slug}/questions`)
 }
 
 export function listLeads(params?: { status?: LeadStatus; limit?: number }) {
@@ -106,6 +160,42 @@ export function updateLead(id: number, payload: LeadUpdate) {
 
 export function deleteLead(id: number) {
   return backendRequest<void>(`/api/leads/${id}`, { method: "DELETE" })
+}
+
+export function createLeadNote(leadId: number, payload: { content: string; color?: NoteColor }) {
+  return backendRequest<LeadNote>(`/api/leads/${leadId}/notes`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateLeadNote(noteId: number, payload: Partial<Pick<LeadNote, "content" | "color">>) {
+  return backendRequest<LeadNote>(`/api/leads/notes/${noteId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteLeadNote(noteId: number) {
+  return backendRequest<void>(`/api/leads/notes/${noteId}`, { method: "DELETE" })
+}
+
+export function createLeadTask(leadId: number, payload: { comment: string; action: string; due_date: string }) {
+  return backendRequest<LeadTask>(`/api/leads/${leadId}/tasks`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateLeadTask(taskId: number, payload: Partial<Pick<LeadTask, "comment" | "action" | "due_date" | "completed">>) {
+  return backendRequest<LeadTask>(`/api/leads/tasks/${taskId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteLeadTask(taskId: number) {
+  return backendRequest<void>(`/api/leads/tasks/${taskId}`, { method: "DELETE" })
 }
 
 export function listContacts() {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -11,8 +12,8 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -21,67 +22,46 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MoreHorizontalIcon, MailOpenIcon, Trash2Icon, EyeIcon } from "lucide-react"
-import { listContacts, markContactRead, deleteContact, type Contact } from "@/lib/api"
+import { Badge } from "@/components/ui/badge"
+import { Loader2Icon } from "lucide-react"
+import { listLeadContacts, type LeadContact } from "@/lib/api"
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50]
 
 function formatDate(iso: string) {
-  const [year, month, day] = iso.split("T")[0].split("-").map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
 }
 
 export default function ContactsPage() {
-  const [contacts, setContacts] = useState<Contact[]>([])
+  const router = useRouter()
+  const [contacts, setContacts] = useState<LeadContact[]>([])
   const [loading, setLoading] = useState(true)
-  const [viewing, setViewing] = useState<Contact | null>(null)
+  const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
   useEffect(() => {
-    listContacts()
+    listLeadContacts()
       .then(setContacts)
-      .catch(() => {})
+      .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
 
-  const totalPages = Math.max(1, Math.ceil(contacts.length / pageSize))
+  const filtered = contacts.filter((c) => {
+    const q = search.toLowerCase()
+    if (!q) return true
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.email ?? "").toLowerCase().includes(q) ||
+      c.phone.includes(q) ||
+      (c.address ?? "").toLowerCase().includes(q)
+    )
+  })
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
-  const paginated = contacts.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-
-  function openView(c: Contact) {
-    setViewing(c)
-    if (!c.read) {
-      markContactRead(c.id)
-        .then(() => setContacts((prev) => prev.map((x) => x.id === c.id ? { ...x, read: true } : x)))
-        .catch(() => {})
-    }
-  }
-
-  function handleDelete(id: number) {
-    deleteContact(id)
-      .then(() => setContacts((prev) => prev.filter((c) => c.id !== id)))
-      .catch(() => {})
-  }
-
-  const unreadCount = contacts.filter((c) => !c.read).length
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
     <>
@@ -100,77 +80,59 @@ export default function ContactsPage() {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          {unreadCount > 0 && (
-            <Badge className="ml-2 bg-amber-100 text-amber-700">{unreadCount} non lu{unreadCount > 1 ? "s" : ""}</Badge>
-          )}
         </div>
       </header>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            placeholder="Rechercher un contact…"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            className="w-64"
+          />
+        </div>
+
         {loading ? (
-          <div className="text-sm text-muted-foreground">Chargement…</div>
-        ) : contacts.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            <Loader2Icon className="inline animate-spin mr-2" size={16} />
+            Chargement…
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-sm text-muted-foreground">Aucun contact pour le moment.</div>
         ) : (
           <>
             <Table containerClassName="max-h-[70vh] overflow-y-auto rounded-xl border">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="sticky top-0 z-10 bg-background w-4" />
                   <TableHead className="sticky top-0 z-10 bg-background">Nom</TableHead>
-                  <TableHead className="sticky top-0 z-10 bg-background">Email</TableHead>
                   <TableHead className="sticky top-0 z-10 bg-background">Téléphone</TableHead>
-                  <TableHead className="sticky top-0 z-10 bg-background">Reçu le</TableHead>
-                  <TableHead className="sticky top-0 z-10 bg-background">Statut</TableHead>
-                  <TableHead className="sticky top-0 z-10 w-10 bg-background" />
+                  <TableHead className="sticky top-0 z-10 bg-background">Email</TableHead>
+                  <TableHead className="sticky top-0 z-10 bg-background">Adresse</TableHead>
+                  <TableHead className="sticky top-0 z-10 bg-background">Ajouté le</TableHead>
+                  <TableHead className="sticky top-0 z-10 bg-background" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginated.map((c) => (
-                  <TableRow key={c.id} className={!c.read ? "font-medium" : ""}>
-                    <TableCell>
-                      {!c.read && <span className="block w-2 h-2 rounded-full bg-amber-400" />}
+                  <TableRow
+                    key={c.id}
+                    className={c.lead_id ? "cursor-pointer" : ""}
+                    onClick={() => c.lead_id && router.push(`/dashboard/leads/${c.lead_id}`)}
+                  >
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>{c.phone}</TableCell>
+                    <TableCell>{c.email ?? "—"}</TableCell>
+                    <TableCell className="max-w-[220px] truncate" title={c.address ?? ""}>
+                      {c.address ?? "—"}
                     </TableCell>
-                    <TableCell>{c.name}</TableCell>
-                    <TableCell>{c.email}</TableCell>
-                    <TableCell>{c.phone ?? "—"}</TableCell>
                     <TableCell>{formatDate(c.created_at)}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className={c.read ? "bg-gray-100 text-gray-500" : "bg-amber-100 text-amber-700"}>
-                        {c.read ? "Lu" : "Non lu"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button variant="ghost" size="icon-sm">
-                              <MoreHorizontalIcon />
-                              <span className="sr-only">Actions</span>
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openView(c)}>
-                            <EyeIcon />
-                            Voir le message
-                          </DropdownMenuItem>
-                          {!c.read && (
-                            <DropdownMenuItem onClick={() => {
-                              markContactRead(c.id)
-                                .then(() => setContacts((prev) => prev.map((x) => x.id === c.id ? { ...x, read: true } : x)))
-                                .catch(() => {})
-                            }}>
-                              <MailOpenIcon />
-                              Marquer comme lu
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem variant="destructive" onClick={() => handleDelete(c.id)}>
-                            <Trash2Icon />
-                            Supprimer
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {c.lead_deleted && (
+                        <Badge variant="secondary" className="bg-gray-100 text-gray-500">
+                          Lead supprimé
+                        </Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -180,7 +142,7 @@ export default function ContactsPage() {
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>Lignes par page</span>
-                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
+                <Select value={String(pageSize)} onValueChange={(v) => { if (v != null) { setPageSize(Number(v)); setPage(1) } }}>
                   <SelectTrigger size="sm" className="w-18">
                     <SelectValue />
                   </SelectTrigger>
@@ -202,33 +164,6 @@ export default function ContactsPage() {
           </>
         )}
       </div>
-
-      <Dialog open={!!viewing} onOpenChange={(open) => !open && setViewing(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Message de {viewing?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 text-sm">
-            <div className="flex gap-2">
-              <span className="text-muted-foreground w-20 shrink-0">Email</span>
-              <span>{viewing?.email}</span>
-            </div>
-            {viewing?.phone && (
-              <div className="flex gap-2">
-                <span className="text-muted-foreground w-20 shrink-0">Téléphone</span>
-                <span>{viewing.phone}</span>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <span className="text-muted-foreground w-20 shrink-0">Reçu le</span>
-              <span>{viewing ? formatDate(viewing.created_at) : ""}</span>
-            </div>
-            <div className="mt-2 p-4 rounded-lg bg-muted text-sm leading-relaxed whitespace-pre-wrap">
-              {viewing?.message}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

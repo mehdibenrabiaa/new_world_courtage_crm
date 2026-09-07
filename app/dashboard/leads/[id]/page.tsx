@@ -14,35 +14,24 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { TableSkeleton } from "@/components/table-skeleton"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger, TabsIndicator } from "@/components/ui/tabs"
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
 import { Trash2Icon, Loader2Icon } from "lucide-react"
-import { getLead, updateLead, deleteLead, type Lead, type LeadStatus, type LeadType } from "@/lib/api"
-import { CATEGORIES } from "@/lib/categories"
+import { getLead, updateLead, deleteLead, type Lead, type LeadStatus } from "@/lib/api"
+import { GarageLeadFields, GarageLeadFieldsTriggers, garageDraftFrom, type GarageDraft, STATUS_LABELS } from "@/components/leads/garage-lead-fields"
+import { LeadNotesTab } from "@/components/leads/lead-notes-tab"
+import { LeadTasksTab } from "@/components/leads/lead-tasks-tab"
 
-const STATUSES: LeadStatus[] = ["new", "contacted", "qualified", "converted", "lost"]
-
-const STATUS_LABELS: Record<LeadStatus, string> = {
-  new: "Nouveau",
-  contacted: "Contacté",
-  qualified: "Qualifié",
-  converted: "Converti",
-  lost: "Perdu",
-}
+// This page renders the "garage" (Assurance Garage) lead layout directly.
+// Once other questionnaire types (taxi, immobilier, …) get their own field
+// set, this should dispatch on `lead.type` to the matching sibling of
+// GarageLeadFields — the Notes/Tâches tabs stay as-is either way, since
+// LeadNotesTab/LeadTasksTab only need a lead id and are reused unchanged.
 
 const STATUS_STYLES: Record<LeadStatus, string> = {
   new: "bg-blue-100 text-blue-700",
@@ -56,36 +45,6 @@ function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 }
 
-type Draft = {
-  status: LeadStatus
-  type: LeadType
-  name: string
-  phone: string
-  email: string
-  immat: string
-  naissance: string
-  permis: string
-  siret: string
-  activite: string
-  notes: string
-}
-
-function draftFrom(l: Lead): Draft {
-  return {
-    status: l.status,
-    type: l.type,
-    name: l.name,
-    phone: l.phone,
-    email: l.email ?? "",
-    immat: l.immat ?? "",
-    naissance: l.naissance ?? "",
-    permis: l.permis ?? "",
-    siret: l.siret ?? "",
-    activite: l.activite ?? "",
-    notes: l.notes ?? "",
-  }
-}
-
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
@@ -94,7 +53,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [lead, setLead] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [draft, setDraft] = useState<Draft | null>(null)
+  const [draft, setDraft] = useState<GarageDraft | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -103,13 +62,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     getLead(Number(id))
       .then((l) => {
         setLead(l)
-        setDraft(draftFrom(l))
+        setDraft(garageDraftFrom(l))
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [id])
 
-  const dirty = lead && draft && JSON.stringify(draft) !== JSON.stringify(draftFrom(lead))
+  const dirty = lead && draft && JSON.stringify(draft) !== JSON.stringify(garageDraftFrom(lead))
 
   async function handleSave() {
     if (!lead || !draft) return
@@ -126,10 +85,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         permis: draft.permis.trim() || undefined,
         siret: draft.siret.trim() || undefined,
         activite: draft.activite.trim() || undefined,
-        notes: draft.notes.trim() || undefined,
       })
       setLead(updated)
-      setDraft(draftFrom(updated))
+      setDraft(garageDraftFrom(updated))
       toastManager.add({ title: "Lead mis à jour", type: "success" })
     } catch (err) {
       console.error(err)
@@ -198,117 +156,18 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <div className="flex flex-col gap-6 lg:col-span-2">
-                <div className="rounded-xl border p-5 flex flex-col gap-4">
-                  <span className="text-sm font-semibold">Contact</span>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="l-name">Nom</Label>
-                      <Input id="l-name" value={draft.name} onChange={(e) => setDraft((d) => d && { ...d, name: e.target.value })} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="l-phone">Téléphone</Label>
-                      <Input id="l-phone" value={draft.phone} onChange={(e) => setDraft((d) => d && { ...d, phone: e.target.value })} />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="l-email">Email</Label>
-                    <Input id="l-email" value={draft.email} onChange={(e) => setDraft((d) => d && { ...d, email: e.target.value })} />
-                  </div>
-                </div>
+            <Tabs defaultValue="contact" className="w-full">
+              <TabsList>
+                <TabsIndicator />
+                <GarageLeadFieldsTriggers hasAnswers={lead.answers.length > 0} />
+                <TabsTrigger value="notes">Notes</TabsTrigger>
+                <TabsTrigger value="taches">Tâches</TabsTrigger>
+              </TabsList>
 
-                <div className="rounded-xl border p-5 flex flex-col gap-4">
-                  <span className="text-sm font-semibold">Détails véhicule</span>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="l-immat">Immatriculation</Label>
-                      <Input id="l-immat" value={draft.immat} onChange={(e) => setDraft((d) => d && { ...d, immat: e.target.value })} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="l-naissance">Naissance</Label>
-                      <Input id="l-naissance" value={draft.naissance} onChange={(e) => setDraft((d) => d && { ...d, naissance: e.target.value })} placeholder="MM/AAAA" />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="l-permis">Permis</Label>
-                      <Input id="l-permis" value={draft.permis} onChange={(e) => setDraft((d) => d && { ...d, permis: e.target.value })} placeholder="MM/AAAA" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border p-5 flex flex-col gap-4">
-                  <span className="text-sm font-semibold">Détails entreprise</span>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="l-siret">SIRET</Label>
-                      <Input id="l-siret" value={draft.siret} onChange={(e) => setDraft((d) => d && { ...d, siret: e.target.value })} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="l-activite">Activité</Label>
-                      <Input id="l-activite" value={draft.activite} onChange={(e) => setDraft((d) => d && { ...d, activite: e.target.value })} />
-                    </div>
-                  </div>
-                </div>
-
-                {lead.answers.length > 0 && (
-                  <div className="rounded-xl border p-5 flex flex-col gap-3">
-                    <span className="text-sm font-semibold">Réponses au questionnaire</span>
-                    <div className="flex flex-col divide-y">
-                      {lead.answers.map((a) => (
-                        <div key={a.id} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                          <span className="text-muted-foreground">{a.question}</span>
-                          <span className="font-medium text-right">{a.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-6">
-                <div className="rounded-xl border p-5 flex flex-col gap-4">
-                  <span className="text-sm font-semibold">Statut</span>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="l-status">Statut</Label>
-                    <Select value={draft.status} onValueChange={(v) => v != null && setDraft((d) => d && { ...d, status: v as LeadStatus })}>
-                      <SelectTrigger id="l-status" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STATUSES.map((s) => <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="l-type">Catégorie</Label>
-                    <Select value={draft.type} onValueChange={(v) => v != null && setDraft((d) => d && { ...d, type: v as LeadType })}>
-                      <SelectTrigger id="l-type" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {lead.source && (
-                    <div className="text-xs text-muted-foreground">
-                      <span className="font-medium">Source :</span> {lead.source}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-xl border p-5 flex flex-col gap-1.5">
-                  <Label htmlFor="l-notes">Notes internes</Label>
-                  <Textarea
-                    id="l-notes"
-                    value={draft.notes}
-                    onChange={(e) => setDraft((d) => d && { ...d, notes: e.target.value })}
-                    placeholder="Notes internes sur ce lead…"
-                    className="resize-none min-h-[140px]"
-                  />
-                </div>
-              </div>
-            </div>
+              <GarageLeadFields lead={lead} draft={draft} setDraft={setDraft} />
+              <LeadNotesTab leadId={lead.id} initialNotes={lead.sticky_notes} />
+              <LeadTasksTab leadId={lead.id} initialTasks={lead.tasks} />
+            </Tabs>
           </div>
         )}
       </div>
