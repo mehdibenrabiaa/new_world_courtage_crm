@@ -15,7 +15,20 @@ import { CATEGORIES } from "@/lib/categories"
 // A checkbox question's value is a comma-joined list of the checked option
 // labels (see garagiste/devis's handleSubmit: `labels.join(", ")`) — split
 // it back apart to render as separate tags instead of one long string.
-type DisplayAnswer = LeadAnswer & { isMultiChoice: boolean; unit: string | null; isDate: boolean; isVehicleList: boolean }
+type DisplayAnswer = LeadAnswer & { isMultiChoice: boolean; unit: string | null; isDate: boolean; isVehicleList: boolean; groupLabel: string }
+
+// Questions whose answer is a JSON array of repeating groups (one list of
+// {label, value} fields each — see garagiste/devis's handleSubmit) instead
+// of a plain scalar, and what to call each item ("Véhicule 1", "Associé 1",
+// …) when rendering it. Only flotte/W Garage show up in the Véhicules tab —
+// see VEHICLE_TAB_KEYS below — pct_detention_capital only ever appears in
+// the Réponses tab, under Coordonnées.
+const REPEATING_GROUP_LABELS: Record<string, string> = {
+  flotte_immatriculations: "Véhicule",
+  w_garage_vehicules: "Véhicule",
+  pct_detention_capital: "Associé",
+}
+const VEHICLE_TAB_KEYS = new Set(["flotte_immatriculations", "w_garage_vehicules"])
 
 // "Immatriculations (carte grise) des véhicules" is submitted as a JSON
 // array of vehicles, each a list of {label, value} fields (see
@@ -52,13 +65,13 @@ function parseVehicleList(value: string): { fields: VehicleField[] }[] {
 
 // Shared between the Réponses tab and the Véhicule tab — the fleet list is
 // shown in both places (per user request), so this is the one place its
-// nested "Véhicule N" / field bullets are rendered.
-function FleetVehicleList({ vehicles }: { vehicles: { fields: VehicleField[] }[] }) {
+// nested "Véhicule N" / "Associé N" / field bullets are rendered.
+function FleetVehicleList({ vehicles, itemLabel = "Véhicule" }: { vehicles: { fields: VehicleField[] }[]; itemLabel?: string }) {
   return (
     <div className="flex flex-col gap-3 text-sm">
       {vehicles.map((vehicle, i) => (
         <div key={i} className="flex flex-col gap-1">
-          <span className="text-xs font-semibold text-muted-foreground">Véhicule {i + 1}</span>
+          <span className="text-xs font-semibold text-muted-foreground">{itemLabel} {i + 1}</span>
           <Table containerClassName="pl-6">
             <TableBody>
               {vehicle.fields.map((f, j) => (
@@ -141,7 +154,8 @@ function groupAnswersBySection(answers: LeadAnswer[], questions: PublishedQuesti
       isMultiChoice: question?.type === "checkbox",
       unit: question?.unit ?? null,
       isDate: question?.input_type === "date",
-      isVehicleList: a.catalog_key === "flotte_immatriculations",
+      isVehicleList: a.catalog_key in REPEATING_GROUP_LABELS,
+      groupLabel: REPEATING_GROUP_LABELS[a.catalog_key] ?? "Véhicule",
     })
   }
   for (const list of bySection.values()) {
@@ -226,7 +240,7 @@ export function GarageLeadFields({
   }, [])
 
   const sections = groupAnswersBySection(lead.answers, questions)
-  const fleetAnswer = lead.answers.find((a) => a.catalog_key === "flotte_immatriculations")
+  const vehicleListAnswers = lead.answers.filter((a) => VEHICLE_TAB_KEYS.has(a.catalog_key) && !isCorruptedLegacyValue(a.value))
 
   return (
     <Fragment>
@@ -247,17 +261,19 @@ export function GarageLeadFields({
         </Field>
       </TabsContent>
 
-      <TabsContent value="vehicule" className="rounded-xl border p-5">
-        {fleetAnswer && !isCorruptedLegacyValue(fleetAnswer.value) ? (
-          <div className="flex flex-col gap-2">
-            <span
-              className="text-xs font-semibold uppercase tracking-wide text-black"
-              style={{ backgroundColor: "#f4f4f4", padding: "8px 5px" }}
-            >
-              {fleetAnswer.question}
-            </span>
-            <FleetVehicleList vehicles={parseVehicleList(fleetAnswer.value)} />
-          </div>
+      <TabsContent value="vehicule" className="rounded-xl border p-5 flex flex-col gap-6">
+        {vehicleListAnswers.length > 0 ? (
+          vehicleListAnswers.map((a) => (
+            <div key={a.id} className="flex flex-col gap-2">
+              <span
+                className="text-xs font-semibold uppercase tracking-wide text-black"
+                style={{ backgroundColor: "#f4f4f4", padding: "8px 5px" }}
+              >
+                {a.question}
+              </span>
+              <FleetVehicleList vehicles={parseVehicleList(a.value)} />
+            </div>
+          ))
         ) : (
           <p className="text-sm text-muted-foreground">Aucune information véhicule pour ce lead.</p>
         )}
@@ -293,7 +309,7 @@ export function GarageLeadFields({
                     {isCorruptedLegacyValue(a.value) ? (
                       <span className="text-muted-foreground italic text-right">Donnée non disponible</span>
                     ) : a.isVehicleList ? (
-                      <FleetVehicleList vehicles={parseVehicleList(a.value)} />
+                      <FleetVehicleList vehicles={parseVehicleList(a.value)} itemLabel={a.groupLabel} />
                     ) : a.isMultiChoice || a.unit === "percent" ? (
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {a.value.split(",").map((v) => v.trim()).filter(Boolean).map((v, i) => (
