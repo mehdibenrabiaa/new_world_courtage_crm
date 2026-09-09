@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
@@ -9,12 +9,14 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsIndicator, TabsContent } from "@/components/ui/tabs"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import { Loader2Icon } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
+import { useToastManager } from "@/components/ui/toast"
 import type { PermissionAction, PermissionResource, UserRole } from "@/lib/auth"
 import { listPermissions, updatePermission, type RolePermissionRow } from "@/lib/api"
 
@@ -56,13 +58,21 @@ function buildMatrix(rows: RolePermissionRow[]): Matrix {
   return matrix
 }
 
+function cellValue(matrix: Matrix, role: string, resource: string, action: string): boolean {
+  return !!matrix[role]?.[resource]?.[action]
+}
+
 export default function PermissionsPage() {
   const router = useRouter()
   const { user: me } = useAuth()
+  const toastManager = useToastManager()
 
+  // savedMatrix mirrors the backend; matrix is the working copy checkboxes
+  // edit locally until "Enregistrer" actually sends the changed cells.
+  const [savedMatrix, setSavedMatrix] = useState<Matrix>({})
   const [matrix, setMatrix] = useState<Matrix>({})
   const [loading, setLoading] = useState(true)
-  const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (me && me.role !== "superadmin") router.replace("/dashboard")
@@ -70,31 +80,58 @@ export default function PermissionsPage() {
 
   useEffect(() => {
     listPermissions()
-      .then((rows) => setMatrix(buildMatrix(rows)))
+      .then((rows) => {
+        const built = buildMatrix(rows)
+        setSavedMatrix(built)
+        setMatrix(built)
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
 
-  async function toggle(role: UserRole, resource: PermissionResource, action: PermissionAction, next: boolean) {
-    const key = `${role}:${resource}:${action}`
-    setSavingKey(key)
-    // Optimistic — the CRM's own request to this page is already gated by
-    // require_superadmin, so a failure here is a network blip, not an
-    // expected permission denial.
+  const dirtyKeys = useMemo(() => {
+    const keys: { role: UserRole; resource: PermissionResource; action: PermissionAction }[] = []
+    for (const role of CONFIGURABLE_ROLES) {
+      for (const resource of RESOURCES) {
+        for (const { action } of ACTIONS) {
+          if (cellValue(matrix, role, resource, action) !== cellValue(savedMatrix, role, resource, action)) {
+            keys.push({ role, resource, action })
+          }
+        }
+      }
+    }
+    return keys
+  }, [matrix, savedMatrix])
+
+  function toggle(role: UserRole, resource: PermissionResource, action: PermissionAction, next: boolean) {
     setMatrix((prev) => ({
       ...prev,
       [role]: { ...prev[role], [resource]: { ...prev[role]?.[resource], [action]: next } },
     }))
+  }
+
+  function discard() {
+    setMatrix(savedMatrix)
+  }
+
+  async function save() {
+    setSaving(true)
     try {
-      await updatePermission(role, resource, action, next)
+      await Promise.all(
+        dirtyKeys.map(({ role, resource, action }) =>
+          updatePermission(role, resource, action, cellValue(matrix, role, resource, action))
+        )
+      )
+      setSavedMatrix(matrix)
+      toastManager.add({ title: "Permissions enregistrées.", type: "success" })
     } catch (err) {
-      console.error(err)
-      setMatrix((prev) => ({
-        ...prev,
-        [role]: { ...prev[role], [resource]: { ...prev[role]?.[resource], [action]: !next } },
-      }))
+      toastManager.add({
+        title: "Échec de l'enregistrement",
+        description: err instanceof Error ? err.message : "Une erreur est survenue.",
+        type: "error",
+      })
     } finally {
-      setSavingKey((k) => (k === key ? null : k))
+      setSaving(false)
     }
   }
 
@@ -119,9 +156,27 @@ export default function PermissionsPage() {
       </header>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <p className="text-sm text-muted-foreground">
-          Ce que chaque rôle peut faire, par section du CRM. Le super-administrateur a toujours accès à tout et n&apos;apparaît pas ici.
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Ce que chaque rôle peut faire, par section du CRM. Le super-administrateur a toujours accès à tout et n&apos;apparaît pas ici.
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            {dirtyKeys.length > 0 && (
+              <>
+                <span className="text-xs text-muted-foreground">
+                  {dirtyKeys.length} modification{dirtyKeys.length > 1 ? "s" : ""} non enregistrée{dirtyKeys.length > 1 ? "s" : ""}
+                </span>
+                <Button variant="outline" size="sm" onClick={discard} disabled={saving}>
+                  Annuler
+                </Button>
+              </>
+            )}
+            <Button size="sm" onClick={save} disabled={saving || dirtyKeys.length === 0}>
+              {saving && <Loader2Icon size={14} className="animate-spin" />}
+              Enregistrer
+            </Button>
+          </div>
+        </div>
 
         {loading ? (
           <div className="flex items-center justify-center text-muted-foreground gap-2 py-16">
@@ -153,13 +208,13 @@ export default function PermissionsPage() {
                       <TableRow key={resource}>
                         <TableCell className="font-medium">{RESOURCE_LABELS[resource]}</TableCell>
                         {ACTIONS.map(({ action }) => {
-                          const key = `${role}:${resource}:${action}`
-                          const allowed = !!matrix[role]?.[resource]?.[action]
+                          const allowed = cellValue(matrix, role, resource, action)
+                          const isDirty = allowed !== cellValue(savedMatrix, role, resource, action)
                           return (
-                            <TableCell key={action} className="text-center">
+                            <TableCell key={action} className={`text-center ${isDirty ? "bg-amber-50" : ""}`}>
                               <Checkbox
                                 checked={allowed}
-                                disabled={savingKey === key}
+                                disabled={saving}
                                 onCheckedChange={() => toggle(role, resource, action, !allowed)}
                               />
                             </TableCell>
