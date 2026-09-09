@@ -3,16 +3,20 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Separator } from "@/components/ui/separator"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, EyeIcon, EyeOffIcon } from "lucide-react"
 import { getToken, login } from "@/lib/auth"
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [remember, setRemember] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -24,14 +28,14 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim() || !password) {
-      setError("Merci de renseigner votre email et votre mot de passe.")
+    if (!username.trim() || !password) {
+      setError("Merci de renseigner votre nom d'utilisateur et votre mot de passe.")
       return
     }
     setError(null)
     setLoading(true)
     try {
-      await login(email, password)
+      await login(username.trim(), password, remember)
       router.replace("/dashboard")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion impossible.")
@@ -51,31 +55,48 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} noValidate>
           <FieldGroup>
             <Field data-invalid={!!error}>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <FieldLabel htmlFor="username">Nom d&apos;utilisateur</FieldLabel>
               <Input
-                id="email"
-                name="email"
-                type="email"
+                id="username"
+                name="username"
+                type="text"
                 autoComplete="username"
                 autoFocus
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
               />
             </Field>
             <Field data-invalid={!!error}>
               <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <InputGroup>
+                <InputGroupInput
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    type="button"
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    onClick={() => setShowPassword((s) => !s)}
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
               <FieldError errors={error ? [{ message: error }] : []} />
             </Field>
+
+            <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
+              <Checkbox checked={remember} onCheckedChange={() => setRemember((r) => !r)} />
+              Se souvenir de moi
+            </label>
 
             <Button type="submit" size="lg" disabled={loading} className="gap-2">
               {loading ? (

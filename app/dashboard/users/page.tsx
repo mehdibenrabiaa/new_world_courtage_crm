@@ -56,7 +56,7 @@ export default function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState("")
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "consultant" as UserRole })
+  const [form, setForm] = useState({ name: "", username: "", email: "", password: "", role: "consultant" as UserRole })
 
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -118,8 +118,12 @@ export default function UsersPage() {
 
   async function handleCreate() {
     setFormError("")
-    if (!form.name.trim() || !form.email.trim() || !form.password) {
+    if (!form.name.trim() || !form.username.trim() || !form.email.trim() || !form.password) {
       setFormError("Merci de remplir tous les champs.")
+      return
+    }
+    if (!/^[a-z0-9._-]+$/i.test(form.username.trim())) {
+      setFormError("Le nom d'utilisateur ne peut contenir que des lettres, chiffres, points, tirets et underscores.")
       return
     }
     if (form.password.length < 8) {
@@ -129,13 +133,13 @@ export default function UsersPage() {
     setCreating(true)
     try {
       const created = await createUser({
-        name: form.name.trim(), email: form.email.trim().toLowerCase(),
+        name: form.name.trim(), username: form.username.trim().toLowerCase(), email: form.email.trim().toLowerCase(),
         password: form.password, role: form.role,
       })
       setUsers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
       setSavedUsers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
       setCreateOpen(false)
-      setForm({ name: "", email: "", password: "", role: "consultant" })
+      setForm({ name: "", username: "", email: "", password: "", role: "consultant" })
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Une erreur est survenue.")
     } finally {
@@ -202,7 +206,7 @@ export default function UsersPage() {
                 </Button>
               </>
             )}
-            <Button onClick={() => { setForm({ name: "", email: "", password: "", role: "consultant" }); setFormError(""); setCreateOpen(true) }}>
+            <Button onClick={() => { setForm({ name: "", username: "", email: "", password: "", role: "consultant" }); setFormError(""); setCreateOpen(true) }}>
               <PlusIcon />
               Nouvel utilisateur
             </Button>
@@ -219,6 +223,7 @@ export default function UsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nom</TableHead>
+                <TableHead>Nom d&apos;utilisateur</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Rôle</TableHead>
                 <TableHead>Actif</TableHead>
@@ -234,6 +239,7 @@ export default function UsersPage() {
                     <TableCell className="font-medium">
                       {u.name} {u.id === me?.id && <Badge variant="secondary" className="ml-1.5">vous</Badge>}
                     </TableCell>
+                    <TableCell className="text-muted-foreground">{u.username}</TableCell>
                     <TableCell className="text-muted-foreground">{u.email}</TableCell>
                     <TableCell>
                       <Select
@@ -296,6 +302,10 @@ export default function UsersPage() {
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="u-name">Nom</Label>
               <Input id="u-name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="u-username">Nom d&apos;utilisateur</Label>
+              <Input id="u-username" value={form.username} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="u-email">Email</Label>

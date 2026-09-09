@@ -34,10 +34,9 @@ const RESOURCE_LABELS: Record<PermissionResource, string> = {
   guides: "Guides",
   authors: "Auteurs",
   media: "Média",
-  questionnaires: "Questionnaires",
 }
 
-const RESOURCES: PermissionResource[] = ["leads", "contacts", "guides", "authors", "media", "questionnaires"]
+const RESOURCES: PermissionResource[] = ["leads", "contacts", "guides", "authors", "media"]
 const ACTIONS: { action: PermissionAction; label: string }[] = [
   { action: "view", label: "Voir" },
   { action: "create", label: "Créer" },

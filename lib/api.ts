@@ -235,14 +235,15 @@ export function deleteContact(id: number) {
 export type ManagedUser = {
   id: number
   name: string
+  username: string
   email: string
   role: UserRole
   active: boolean
   created_at: string
 }
 
-export type UserCreatePayload = { name: string; email: string; password: string; role: UserRole }
-export type UserUpdatePayload = Partial<{ name: string; role: UserRole; active: boolean; password: string }>
+export type UserCreatePayload = { name: string; username: string; email: string; password: string; role: UserRole }
+export type UserUpdatePayload = Partial<{ name: string; username: string; role: UserRole; active: boolean; password: string }>
 
 export function listUsers() {
   return backendRequest<ManagedUser[]>("/api/users/")

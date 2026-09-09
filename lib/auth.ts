@@ -3,12 +3,16 @@ const TOKEN_KEY = "nwc_crm_token"
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000").replace(/\/+$/, "")
 
 export type UserRole = "superadmin" | "admin" | "supervisor" | "consultant"
-export type PermissionResource = "leads" | "contacts" | "guides" | "authors" | "media" | "questionnaires"
+// Questionnaires deliberately aren't here — editing them is superadmin-only
+// on the backend, not a permission any role can be granted (see
+// new_world_courtage_backend's routers/questionnaires.py).
+export type PermissionResource = "leads" | "contacts" | "guides" | "authors" | "media"
 export type PermissionAction = "view" | "create" | "edit" | "delete"
 
 export type CurrentUser = {
   id: number
   name: string
+  username: string
   email: string
   role: UserRole
   active: boolean
@@ -23,17 +27,28 @@ export function can(user: CurrentUser | null, resource: PermissionResource, acti
   return !!user?.permissions?.[resource]?.includes(action)
 }
 
+// "Remember me" decides which storage the token lands in: localStorage
+// survives closing the browser, sessionStorage clears when the tab does.
+// Checked on every read since either could hold it depending on what the
+// user picked at login.
 export function getToken(): string | null {
   if (typeof window === "undefined") return null
-  return localStorage.getItem(TOKEN_KEY)
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY)
 }
 
-function setToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token)
+function setToken(token: string, remember: boolean) {
+  if (remember) {
+    localStorage.setItem(TOKEN_KEY, token)
+    sessionStorage.removeItem(TOKEN_KEY)
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token)
+    localStorage.removeItem(TOKEN_KEY)
+  }
 }
 
 function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
 }
 
 // Every CRM data call (lib/api.ts, lib/*-store.ts) goes through this instead
@@ -53,18 +68,18 @@ export async function authFetch(input: string, init: RequestInit = {}): Promise<
   return res
 }
 
-export async function login(email: string, password: string): Promise<CurrentUser> {
+export async function login(username: string, password: string, remember: boolean): Promise<CurrentUser> {
   const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username, password }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(body?.detail || "Connexion impossible.")
   }
   const data = await res.json()
-  setToken(data.access_token)
+  setToken(data.access_token, remember)
   return data.user
 }
 
