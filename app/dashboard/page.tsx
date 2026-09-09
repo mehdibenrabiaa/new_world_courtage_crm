@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { listLeads, listContacts, type Lead, type Contact } from "@/lib/api"
+import { listLeads, listContacts, type LeadListItem, type Contact } from "@/lib/api"
 import { ReceiptTextIcon, CheckCircleIcon, UsersIcon, TrendingUpIcon } from "lucide-react"
 
 type KPI = {
@@ -36,13 +36,13 @@ function KpiCard({ label, value, sub, icon, color }: KPI) {
 }
 
 export default function DashboardPage() {
-  const [leads, setLeads] = useState<Lead[]>([])
+  const [leads, setLeads] = useState<LeadListItem[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([
-      listLeads().catch(() => [] as Lead[]),
+      listLeads().catch(() => [] as LeadListItem[]),
       listContacts().catch(() => [] as Contact[]),
     ]).then(([l, c]) => {
       setLeads(l)

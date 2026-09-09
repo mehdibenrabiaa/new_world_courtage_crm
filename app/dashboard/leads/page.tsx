@@ -53,7 +53,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { MoreHorizontalIcon, PencilIcon, Trash2Icon, Loader2Icon, PlusIcon } from "lucide-react"
 import {
   listLeadsPage, deleteLead, createLead, listAssignableUsers, updateLead,
-  type Lead, type LeadStatus, type LeadType, type LeadCreate, type LeadAssignee,
+  type LeadListItem, type LeadStatus, type LeadType, type LeadCreate, type LeadAssignee,
 } from "@/lib/api"
 import { CATEGORIES } from "@/lib/categories"
 import { useAuth } from "@/components/auth-provider"
@@ -114,10 +114,10 @@ export default function LeadsPage() {
   const searchParams = useSearchParams()
   const { user: me } = useAuth()
   const canAssign = me?.role === "superadmin" || me?.role === "admin"
-  const [leads, setLeads] = useState<Lead[]>([])
+  const [leads, setLeads] = useState<LeadListItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<LeadListItem | null>(null)
   const [deleting, setDeleting] = useState(false)
   const toastManager = useToastManager()
 
@@ -225,7 +225,7 @@ export default function LeadsPage() {
     updateParams({ pageSize: value, page: 1 })
   }
 
-  async function handleInlineReassign(lead: Lead, value: string) {
+  async function handleInlineReassign(lead: LeadListItem, value: string) {
     setReassigningId(lead.id)
     try {
       const updated = value === "unassigned"
@@ -240,7 +240,7 @@ export default function LeadsPage() {
     }
   }
 
-  function openLead(l: Lead) {
+  function openLead(l: LeadListItem) {
     router.push(`/dashboard/leads/${l.id}`)
   }
 

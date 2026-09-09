@@ -165,15 +165,22 @@ export function fetchQuestionnaireQuestions(slug: string) {
   return backendRequest<PublishedQuestion[]>(`/questionnaires/${slug}/questions`)
 }
 
+// What GET /api/leads/ actually returns — the backend deliberately leaves
+// out answers/sticky_notes/tasks (and the vehicle/business detail fields)
+// here, since listing leads doesn't need them and including them would mean
+// lazy-loading three relationships per row. Fetch a single lead (getLead)
+// for the full Lead shape.
+export type LeadListItem = Pick<Lead, "id" | "type" | "status" | "name" | "phone" | "email" | "assigned_to" | "created_at">
+
 export function listLeads(params?: { status?: LeadStatus; assignedToId?: number; limit?: number }) {
   const url = new URL(`${BACKEND_URL}/api/leads/`)
   if (params?.status) url.searchParams.set("status", params.status)
   if (params?.assignedToId != null) url.searchParams.set("assigned_to_id", String(params.assignedToId))
   url.searchParams.set("limit", String(params?.limit ?? 200))
-  return backendRequest<Lead[]>(url.pathname + url.search)
+  return backendRequest<LeadListItem[]>(url.pathname + url.search)
 }
 
-export type LeadsPage = { leads: Lead[]; total: number }
+export type LeadsPage = { leads: LeadListItem[]; total: number }
 
 // Server-side paginated + filtered fetch for the leads table — unlike
 // listLeads() above, this only ever pulls one page's worth of rows over the
@@ -196,7 +203,7 @@ export async function listLeadsPage(params: {
   if (params.search) url.searchParams.set("search", params.search)
   url.searchParams.set("skip", String((params.page - 1) * params.pageSize))
   url.searchParams.set("limit", String(params.pageSize))
-  const { data, headers } = await backendRequestWithHeaders<Lead[]>(url.pathname + url.search)
+  const { data, headers } = await backendRequestWithHeaders<LeadListItem[]>(url.pathname + url.search)
   const total = Number(headers.get("X-Total-Count") ?? data.length)
   return { leads: data, total }
 }
