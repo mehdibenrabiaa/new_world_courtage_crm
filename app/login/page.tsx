@@ -23,6 +23,10 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!email.trim() || !password) {
+      setError("Merci de renseigner votre email et votre mot de passe.")
+      return
+    }
     setError(null)
     setLoading(true)
     try {
@@ -43,7 +47,7 @@ export default function LoginPage() {
           <h1 className="text-lg font-semibold">Connexion au CRM</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">Email</Label>
             <Input
