@@ -1,5 +1,5 @@
 import type { Category } from "@/lib/categories"
-import { authFetch } from "@/lib/auth"
+import { authFetch, type UserRole, type PermissionResource, type PermissionAction } from "@/lib/auth"
 
 // Trailing slash stripped so a production env var set with one doesn't
 // double up with the leading "/" on every call below.
@@ -211,4 +211,54 @@ export function markContactRead(id: number) {
 
 export function deleteContact(id: number) {
   return backendRequest<void>(`/api/contacts/${id}`, { method: "DELETE" })
+}
+
+// ── Users & permissions (superadmin only — the backend 403s anyone else) ──────
+
+export type ManagedUser = {
+  id: number
+  name: string
+  email: string
+  role: UserRole
+  active: boolean
+  created_at: string
+}
+
+export type UserCreatePayload = { name: string; email: string; password: string; role: UserRole }
+export type UserUpdatePayload = Partial<{ name: string; role: UserRole; active: boolean; password: string }>
+
+export function listUsers() {
+  return backendRequest<ManagedUser[]>("/api/users/")
+}
+
+export function createUser(payload: UserCreatePayload) {
+  return backendRequest<ManagedUser>("/api/users/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateUser(id: number, payload: UserUpdatePayload) {
+  return backendRequest<ManagedUser>(`/api/users/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+}
+
+export type RolePermissionRow = {
+  role: UserRole
+  resource: PermissionResource
+  action: PermissionAction
+  allowed: boolean
+}
+
+export function listPermissions() {
+  return backendRequest<RolePermissionRow[]>("/api/permissions/")
+}
+
+export function updatePermission(role: UserRole, resource: PermissionResource, action: PermissionAction, allowed: boolean) {
+  return backendRequest<RolePermissionRow>(`/api/permissions/${role}/${resource}/${action}`, {
+    method: "PATCH",
+    body: JSON.stringify({ allowed }),
+  })
 }

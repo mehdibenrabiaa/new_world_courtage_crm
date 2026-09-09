@@ -2,10 +2,25 @@ const TOKEN_KEY = "nwc_crm_token"
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000").replace(/\/+$/, "")
 
+export type UserRole = "superadmin" | "admin" | "supervisor" | "consultant"
+export type PermissionResource = "leads" | "contacts" | "guides" | "authors" | "media" | "questionnaires"
+export type PermissionAction = "view" | "create" | "edit" | "delete"
+
 export type CurrentUser = {
   id: number
   name: string
   email: string
+  role: UserRole
+  active: boolean
+  created_at: string
+  // resource -> allowed actions. A superadmin's is pre-expanded to every
+  // action on every resource by the backend, so UI code never needs a
+  // separate "or is superadmin" branch — just check permissions.
+  permissions: Record<PermissionResource, PermissionAction[]>
+}
+
+export function can(user: CurrentUser | null, resource: PermissionResource, action: PermissionAction): boolean {
+  return !!user?.permissions?.[resource]?.includes(action)
 }
 
 export function getToken(): string | null {
