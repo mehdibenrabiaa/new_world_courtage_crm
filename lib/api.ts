@@ -65,6 +65,8 @@ export type LeadTask = {
   created_at: string
 }
 
+export type LeadAssignee = { id: number; name: string; email: string }
+
 export type Lead = {
   id: number
   type: LeadType
@@ -78,6 +80,7 @@ export type Lead = {
   siret: string | null
   activite: string | null
   source: string | null
+  assigned_to: LeadAssignee | null
   sticky_notes: LeadNote[]
   tasks: LeadTask[]
   answers: LeadAnswer[]
@@ -85,10 +88,17 @@ export type Lead = {
   updated_at: string
 }
 
-export type LeadUpdate = Partial<Pick<Lead, "status" | "name" | "phone" | "email" | "type" | "immat" | "naissance" | "permis" | "siret" | "activite">>
+export type LeadUpdate = Partial<Pick<Lead, "status" | "name" | "phone" | "email" | "type" | "immat" | "naissance" | "permis" | "siret" | "activite">> &
+  // Reassign (only takes effect for a superadmin/admin caller — the
+  // backend 403s anyone else) or explicitly clear the assignee.
+  Partial<{ assigned_to_id: number; unassign: boolean }>
 
 export type LeadCreate = Pick<Lead, "type" | "name" | "phone"> &
   Partial<Pick<Lead, "email" | "immat" | "naissance" | "permis" | "siret" | "activite" | "source">> &
+  // Set by the CRM's own create-lead flow only — a consultant creating a
+  // lead auto-assigns it to themselves (see app/dashboard/leads/page.tsx),
+  // otherwise omitted so it's unassigned like every public submission.
+  Partial<{ assigned_to_id: number }> &
   Partial<{ answers: Pick<LeadAnswer, "catalog_key" | "question" | "value">[] }>
 
 export type Contact = {
@@ -136,11 +146,18 @@ export function fetchQuestionnaireQuestions(slug: string) {
   return backendRequest<PublishedQuestion[]>(`/questionnaires/${slug}/questions`)
 }
 
-export function listLeads(params?: { status?: LeadStatus; limit?: number }) {
+export function listLeads(params?: { status?: LeadStatus; assignedToId?: number; limit?: number }) {
   const url = new URL(`${BACKEND_URL}/api/leads/`)
   if (params?.status) url.searchParams.set("status", params.status)
+  if (params?.assignedToId != null) url.searchParams.set("assigned_to_id", String(params.assignedToId))
   url.searchParams.set("limit", String(params?.limit ?? 200))
   return backendRequest<Lead[]>(url.pathname + url.search)
+}
+
+// Who a lead can be handed to — superadmin/admin only, the backend 403s
+// anyone else.
+export function listAssignableUsers() {
+  return backendRequest<LeadAssignee[]>("/api/leads/assignable-users")
 }
 
 export function createLead(payload: LeadCreate) {

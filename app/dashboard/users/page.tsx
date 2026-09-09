@@ -241,7 +241,7 @@ export default function UsersPage() {
                         onValueChange={(v) => v != null && setLocal(u.id, { role: v as UserRole })}
                       >
                         <SelectTrigger size="sm" className="w-56" disabled={saving}>
-                          <SelectValue />
+                          <SelectValue>{(v: string) => ROLE_LABELS[v as UserRole] ?? v}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {ASSIGNABLE_ROLES.map((r) => (
@@ -302,7 +302,7 @@ export default function UsersPage() {
               <Label htmlFor="u-role">Rôle</Label>
               <Select value={form.role} onValueChange={(v) => v != null && setForm((p) => ({ ...p, role: v as UserRole }))}>
                 <SelectTrigger id="u-role" className="w-full">
-                  <SelectValue />
+                  <SelectValue>{(v: string) => ROLE_LABELS[v as UserRole] ?? v}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {ASSIGNABLE_ROLES.map((r) => (

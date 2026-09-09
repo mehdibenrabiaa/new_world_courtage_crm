@@ -51,10 +51,11 @@ import {
 import { useToastManager } from "@/components/ui/toast"
 import { MoreHorizontalIcon, PencilIcon, Trash2Icon, Loader2Icon, PlusIcon } from "lucide-react"
 import {
-  listLeads, deleteLead, createLead,
-  type Lead, type LeadStatus, type LeadType, type LeadCreate,
+  listLeads, deleteLead, createLead, listAssignableUsers,
+  type Lead, type LeadStatus, type LeadType, type LeadCreate, type LeadAssignee,
 } from "@/lib/api"
 import { CATEGORIES } from "@/lib/categories"
+import { useAuth } from "@/components/auth-provider"
 
 const STATUSES: LeadStatus[] = ["new", "contacted", "qualified", "converted", "lost"]
 
@@ -78,6 +79,15 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
 }
 
+// base-ui's Select.Value doesn't auto-resolve a SelectItem's label from its
+// children (unlike Radix) — it needs an explicit value->label mapper, hence
+// this everywhere a Select's value isn't already its own display string.
+function assigneeLabel(value: string, users: LeadAssignee[], allLabel?: string): string {
+  if (allLabel && value === "Tous") return allLabel
+  if (value === "unassigned") return "Non assigné"
+  return users.find((u) => String(u.id) === value)?.name ?? value
+}
+
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50]
 
 type NewLead = {
@@ -99,6 +109,8 @@ const EMPTY_NEW_LEAD: NewLead = {
 
 export default function LeadsPage() {
   const router = useRouter()
+  const { user: me } = useAuth()
+  const canAssign = me?.role === "superadmin" || me?.role === "admin"
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null)
@@ -108,10 +120,14 @@ export default function LeadsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newLead, setNewLead] = useState<NewLead>(EMPTY_NEW_LEAD)
+  const [newLeadAssigneeId, setNewLeadAssigneeId] = useState<string>("unassigned")
+
+  const [assignableUsers, setAssignableUsers] = useState<LeadAssignee[]>([])
 
   const [search, setSearch] = useState("")
   const [filterType, setFilterType] = useState<"Tous" | LeadType>("Tous")
   const [filterStatus, setFilterStatus] = useState<"Tous" | LeadStatus>("Tous")
+  const [filterAssignee, setFilterAssignee] = useState<"Tous" | string>("Tous")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
@@ -122,12 +138,22 @@ export default function LeadsPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Consultants can't assign anyway (the backend already scopes their list
+  // to their own leads), so this list — and the filter/picker it feeds —
+  // is only fetched for roles that can actually do something with it.
+  useEffect(() => {
+    if (canAssign) listAssignableUsers().then(setAssignableUsers).catch(console.error)
+  }, [canAssign])
+
   const filtered = leads.filter((l) => {
     const q = search.toLowerCase()
     const matchSearch = !q || l.name.toLowerCase().includes(q) || (l.email ?? "").toLowerCase().includes(q) || l.phone.includes(q)
     const matchType = filterType === "Tous" || l.type === filterType
     const matchStatus = filterStatus === "Tous" || l.status === filterStatus
-    return matchSearch && matchType && matchStatus
+    const matchAssignee =
+      filterAssignee === "Tous" ||
+      (filterAssignee === "unassigned" ? l.assigned_to == null : l.assigned_to?.id === Number(filterAssignee))
+    return matchSearch && matchType && matchStatus && matchAssignee
   })
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -160,6 +186,7 @@ export default function LeadsPage() {
 
   function openCreate() {
     setNewLead(EMPTY_NEW_LEAD)
+    setNewLeadAssigneeId("unassigned")
     setCreateOpen(true)
   }
 
@@ -167,6 +194,15 @@ export default function LeadsPage() {
     if (!newLead.name.trim() || !newLead.phone.trim()) return
     setCreating(true)
     try {
+      // A consultant creating a lead manually auto-assigns it to themselves
+      // — otherwise they'd immediately lose visibility on the lead they
+      // just made, since consultants only ever see their own assignments.
+      // Superadmin/admin get an explicit picker instead (openCreate/dialog
+      // below), defaulting to unassigned.
+      const assignedToId =
+        me?.role === "consultant" ? me.id
+        : newLeadAssigneeId !== "unassigned" ? Number(newLeadAssigneeId)
+        : undefined
       const payload: LeadCreate = {
         type: newLead.type,
         name: newLead.name.trim(),
@@ -178,6 +214,7 @@ export default function LeadsPage() {
         permis: newLead.permis.trim() || undefined,
         siret: newLead.siret.trim() || undefined,
         activite: newLead.activite.trim() || undefined,
+        assigned_to_id: assignedToId,
       }
       const created = await createLead(payload)
       setLeads((prev) => [created, ...prev])
@@ -225,7 +262,7 @@ export default function LeadsPage() {
           />
           <Select value={filterType} onValueChange={(v) => { if (v != null) { setFilterType(v as typeof filterType); setPage(1) } }}>
             <SelectTrigger className="w-48" aria-label="Filtrer par catégorie">
-              <SelectValue />
+              <SelectValue>{(v: string) => (v === "Tous" ? "Toutes les catégories" : v)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Tous">Toutes les catégories</SelectItem>
@@ -234,13 +271,25 @@ export default function LeadsPage() {
           </Select>
           <Select value={filterStatus} onValueChange={(v) => { if (v != null) { setFilterStatus(v as typeof filterStatus); setPage(1) } }}>
             <SelectTrigger className="w-40" aria-label="Filtrer par statut">
-              <SelectValue />
+              <SelectValue>{(v: string) => (v === "Tous" ? "Tous les statuts" : STATUS_LABELS[v as LeadStatus] ?? v)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Tous">Tous les statuts</SelectItem>
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>)}
             </SelectContent>
           </Select>
+          {canAssign && (
+            <Select value={filterAssignee} onValueChange={(v) => { if (v != null) { setFilterAssignee(v); setPage(1) } }}>
+              <SelectTrigger className="w-44" aria-label="Filtrer par assigné">
+                <SelectValue>{(v: string) => assigneeLabel(v, assignableUsers, "Tous les assignés")}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Tous">Tous les assignés</SelectItem>
+                <SelectItem value="unassigned">Non assigné</SelectItem>
+                {assignableUsers.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <Button className="ml-auto" onClick={openCreate}>
             <PlusIcon />
             Nouveau lead
@@ -254,6 +303,7 @@ export default function LeadsPage() {
               <TableHead className="sticky top-0 z-10 bg-background">Contact</TableHead>
               <TableHead className="sticky top-0 z-10 bg-background">Catégorie</TableHead>
               <TableHead className="sticky top-0 z-10 bg-background">Statut</TableHead>
+              {canAssign && <TableHead className="sticky top-0 z-10 bg-background">Assigné à</TableHead>}
               <TableHead className="sticky top-0 z-10 bg-background">Créé le</TableHead>
               <TableHead className="sticky top-0 z-10 w-10 bg-background" />
             </TableRow>
@@ -261,14 +311,14 @@ export default function LeadsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                <TableCell colSpan={canAssign ? 7 : 6} className="text-center text-muted-foreground py-10">
                   <Loader2Icon className="inline animate-spin mr-2" size={16} />
                   Chargement…
                 </TableCell>
               </TableRow>
             ) : paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                <TableCell colSpan={canAssign ? 7 : 6} className="text-center text-muted-foreground py-10">
                   Aucun lead trouvé.
                 </TableCell>
               </TableRow>
@@ -285,6 +335,13 @@ export default function LeadsPage() {
                     {STATUS_LABELS[l.status]}
                   </Badge>
                 </TableCell>
+                {canAssign && (
+                  <TableCell className="text-sm">
+                    {l.assigned_to
+                      ? l.assigned_to.name
+                      : <span className="text-muted-foreground">Non assigné</span>}
+                  </TableCell>
+                )}
                 <TableCell>{formatDate(l.created_at)}</TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
@@ -381,6 +438,21 @@ export default function LeadsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {canAssign && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="nl-assignee">Assigner à (optionnel)</Label>
+                <Select value={newLeadAssigneeId} onValueChange={(v) => v != null && setNewLeadAssigneeId(v)}>
+                  <SelectTrigger id="nl-assignee" className="w-full">
+                    <SelectValue>{(v: string) => assigneeLabel(v, assignableUsers)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Non assigné</SelectItem>
+                    {assignableUsers.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">

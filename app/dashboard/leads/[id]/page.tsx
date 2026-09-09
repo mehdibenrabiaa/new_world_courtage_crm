@@ -17,15 +17,19 @@ import { Button } from "@/components/ui/button"
 import { TableSkeleton } from "@/components/table-skeleton"
 import { Tabs, TabsList, TabsTrigger, TabsIndicator } from "@/components/ui/tabs"
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
+import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
 import { Trash2Icon, Loader2Icon } from "lucide-react"
-import { getLead, updateLead, deleteLead, type Lead, type LeadStatus } from "@/lib/api"
+import { getLead, updateLead, deleteLead, listAssignableUsers, type Lead, type LeadStatus, type LeadAssignee } from "@/lib/api"
 import { GarageLeadFields, GarageLeadFieldsTriggers, garageDraftFrom, type GarageDraft, STATUS_LABELS } from "@/components/leads/garage-lead-fields"
 import { LeadNotesTab } from "@/components/leads/lead-notes-tab"
 import { LeadTasksTab } from "@/components/leads/lead-tasks-tab"
+import { useAuth } from "@/components/auth-provider"
 
 // This page renders the "garage" (Assurance Garage) lead layout directly.
 // Once other questionnaire types (taxi, immobilier, …) get their own field
@@ -53,6 +57,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const toastManager = useToastManager()
+  const { user: me } = useAuth()
+  const canAssign = me?.role === "superadmin" || me?.role === "admin"
 
   // Keep the selected tab in the URL (?tab=…) so a refresh (or a shared
   // link) lands back on the same tab instead of resetting to Contact.
@@ -73,6 +79,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [saving, setSaving] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [assignableUsers, setAssignableUsers] = useState<LeadAssignee[]>([])
+  const [reassigning, setReassigning] = useState(false)
 
   useEffect(() => {
     getLead(Number(id))
@@ -83,6 +91,27 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (canAssign) listAssignableUsers().then(setAssignableUsers).catch(console.error)
+  }, [canAssign])
+
+  async function handleReassign(value: string) {
+    if (!lead) return
+    setReassigning(true)
+    try {
+      const updated = value === "unassigned"
+        ? await updateLead(lead.id, { unassign: true })
+        : await updateLead(lead.id, { assigned_to_id: Number(value) })
+      setLead(updated)
+      toastManager.add({ title: "Lead réassigné", type: "success" })
+    } catch (err) {
+      console.error(err)
+      toastManager.add({ title: "Impossible de réassigner ce lead", type: "error" })
+    } finally {
+      setReassigning(false)
+    }
+  }
 
   const dirty = lead && draft && JSON.stringify(draft) !== JSON.stringify(garageDraftFrom(lead))
 
@@ -162,6 +191,22 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 Créé le {formatDateTime(lead.created_at)} · Mis à jour le {formatDateTime(lead.updated_at)}
               </p>
               <div className="flex items-center gap-2">
+                {canAssign && (
+                  <Select
+                    value={lead.assigned_to ? String(lead.assigned_to.id) : "unassigned"}
+                    onValueChange={(v) => v != null && handleReassign(v)}
+                  >
+                    <SelectTrigger size="sm" className="w-48" disabled={reassigning} aria-label="Assigné à">
+                      <SelectValue>
+                        {(v: string) => (v === "unassigned" ? "Non assigné" : assignableUsers.find((u) => String(u.id) === v)?.name ?? v)}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Non assigné</SelectItem>
+                      {assignableUsers.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
                   <Trash2Icon />
                   Supprimer
