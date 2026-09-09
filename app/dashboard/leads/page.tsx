@@ -51,7 +51,7 @@ import {
 import { useToastManager } from "@/components/ui/toast"
 import { MoreHorizontalIcon, PencilIcon, Trash2Icon, Loader2Icon, PlusIcon } from "lucide-react"
 import {
-  listLeads, deleteLead, createLead, listAssignableUsers, updateLead,
+  listLeadsPage, deleteLead, createLead, listAssignableUsers, updateLead,
   type Lead, type LeadStatus, type LeadType, type LeadCreate, type LeadAssignee,
 } from "@/lib/api"
 import { CATEGORIES } from "@/lib/categories"
@@ -112,6 +112,7 @@ export default function LeadsPage() {
   const { user: me } = useAuth()
   const canAssign = me?.role === "superadmin" || me?.role === "admin"
   const [leads, setLeads] = useState<Lead[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -126,18 +127,55 @@ export default function LeadsPage() {
   const [reassigningId, setReassigningId] = useState<number | null>(null)
 
   const [search, setSearch] = useState("")
+  // Debounced separately from `search` so every keystroke doesn't fire a
+  // request — only once typing pauses.
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [filterType, setFilterType] = useState<"Tous" | LeadType>("Tous")
   const [filterStatus, setFilterStatus] = useState<"Tous" | LeadStatus>("Tous")
   const [filterAssignee, setFilterAssignee] = useState<"Tous" | string>("Tous")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  // Bumped to force a re-fetch of the current page after a mutation
+  // (create/delete) instead of trying to patch server-side pagination state
+  // by hand.
+  const [refreshKey, setRefreshKey] = useState(0)
+  const refetch = () => setRefreshKey((k) => k + 1)
 
   useEffect(() => {
-    listLeads()
-      .then(setLeads)
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
+    const t = setTimeout(() => setDebouncedSearch(search), 350)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Server-side pagination — with thousands of leads, fetching everything
+  // up front and slicing client-side doesn't scale, so only the current
+  // page's rows (plus a total count for the pager) ever cross the wire.
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    listLeadsPage({
+      page,
+      pageSize,
+      status: filterStatus === "Tous" ? undefined : filterStatus,
+      type: filterType === "Tous" ? undefined : filterType,
+      unassigned: filterAssignee === "unassigned" ? true : undefined,
+      assignedToId: filterAssignee !== "Tous" && filterAssignee !== "unassigned" ? Number(filterAssignee) : undefined,
+      search: debouncedSearch.trim() || undefined,
+    })
+      .then(({ leads, total }) => {
+        if (cancelled) return
+        setLeads(leads)
+        setTotal(total)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error(err)
+          toastManager.add({ title: "Impossible de charger les leads", type: "error" })
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, debouncedSearch, filterType, filterStatus, filterAssignee, refreshKey])
 
   // Consultants can't assign anyway (the backend already scopes their list
   // to their own leads), so this list — and the filter/picker it feeds —
@@ -146,20 +184,14 @@ export default function LeadsPage() {
     if (canAssign) listAssignableUsers().then(setAssignableUsers).catch(console.error)
   }, [canAssign])
 
-  const filtered = leads.filter((l) => {
-    const q = search.toLowerCase()
-    const matchSearch = !q || l.name.toLowerCase().includes(q) || (l.email ?? "").toLowerCase().includes(q) || l.phone.includes(q)
-    const matchType = filterType === "Tous" || l.type === filterType
-    const matchStatus = filterStatus === "Tous" || l.status === filterStatus
-    const matchAssignee =
-      filterAssignee === "Tous" ||
-      (filterAssignee === "unassigned" ? l.assigned_to == null : l.assigned_to?.id === Number(filterAssignee))
-    return matchSearch && matchType && matchStatus && matchAssignee
-  })
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const currentPage = Math.min(page, totalPages)
-  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  // If a delete (or a filter change) leaves the current page past the end,
+  // snap back instead of showing an empty page with a live "next" disabled
+  // on a page number that no longer exists.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   function changePageSize(value: string) {
     setPageSize(Number(value))
@@ -190,8 +222,8 @@ export default function LeadsPage() {
     setDeleting(true)
     try {
       await deleteLead(deleteTarget.id)
-      setLeads((prev) => prev.filter((l) => l.id !== deleteTarget.id))
       setDeleteTarget(null)
+      refetch()
     } catch (err) {
       console.error(err)
       toastManager.add({ title: "Impossible de supprimer ce lead", type: "error" })
@@ -233,9 +265,12 @@ export default function LeadsPage() {
         assigned_to_id: assignedToId,
       }
       const created = await createLead(payload)
-      setLeads((prev) => [created, ...prev])
       setCreateOpen(false)
       toastManager.add({ title: "Lead créé", description: created.name, type: "success" })
+      // Newest-first sort means a freshly created lead lands on page 1 —
+      // jump there and re-fetch so it actually shows up.
+      if (page === 1) refetch()
+      else setPage(1)
     } catch (err) {
       console.error(err)
       toastManager.add({ title: "Impossible de créer le lead", type: "error" })
@@ -332,13 +367,13 @@ export default function LeadsPage() {
                   Chargement…
                 </TableCell>
               </TableRow>
-            ) : paginated.length === 0 ? (
+            ) : leads.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={canAssign ? 7 : 6} className="text-center text-muted-foreground py-10">
                   Aucun lead trouvé.
                 </TableCell>
               </TableRow>
-            ) : paginated.map((l) => (
+            ) : leads.map((l) => (
               <TableRow key={l.id} className="cursor-pointer" onClick={() => openLead(l)}>
                 <TableCell className="font-medium">{l.name}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -426,14 +461,14 @@ export default function LeadsPage() {
 
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
-              Page {currentPage} sur {totalPages}
+              {total} lead{total > 1 ? "s" : ""} · page {page} sur {totalPages}
             </span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
+                disabled={page === 1}
               >
                 Précédent
               </Button>
@@ -441,7 +476,7 @@ export default function LeadsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
+                disabled={page === totalPages}
               >
                 Suivant
               </Button>

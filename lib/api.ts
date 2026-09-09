@@ -18,6 +18,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
+// Same as backendRequest, but also hands back the raw Response so a caller
+// can read a header off it (e.g. X-Total-Count for paginated lists).
+async function backendRequestWithHeaders<T>(path: string, init?: RequestInit): Promise<{ data: T; headers: Headers }> {
+  const res = await authFetch(`${BACKEND_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.detail || `API error ${res.status} on ${path}`)
+  }
+  const data = res.status === 204 ? (undefined as T) : await res.json()
+  return { data, headers: res.headers }
+}
+
 // ── Backend API (leads + contacts) ────────────────────────────────────────────
 
 async function backendRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -156,6 +171,34 @@ export function listLeads(params?: { status?: LeadStatus; assignedToId?: number;
   if (params?.assignedToId != null) url.searchParams.set("assigned_to_id", String(params.assignedToId))
   url.searchParams.set("limit", String(params?.limit ?? 200))
   return backendRequest<Lead[]>(url.pathname + url.search)
+}
+
+export type LeadsPage = { leads: Lead[]; total: number }
+
+// Server-side paginated + filtered fetch for the leads table — unlike
+// listLeads() above, this only ever pulls one page's worth of rows over the
+// wire no matter how many leads exist, and reads the true match count off
+// X-Total-Count instead of assuming everything fit in one response.
+export async function listLeadsPage(params: {
+  page: number
+  pageSize: number
+  status?: LeadStatus
+  type?: LeadType
+  assignedToId?: number
+  unassigned?: boolean
+  search?: string
+}): Promise<LeadsPage> {
+  const url = new URL(`${BACKEND_URL}/api/leads/`)
+  if (params.status) url.searchParams.set("status", params.status)
+  if (params.type) url.searchParams.set("type", params.type)
+  if (params.unassigned) url.searchParams.set("unassigned", "true")
+  else if (params.assignedToId != null) url.searchParams.set("assigned_to_id", String(params.assignedToId))
+  if (params.search) url.searchParams.set("search", params.search)
+  url.searchParams.set("skip", String((params.page - 1) * params.pageSize))
+  url.searchParams.set("limit", String(params.pageSize))
+  const { data, headers } = await backendRequestWithHeaders<Lead[]>(url.pathname + url.search)
+  const total = Number(headers.get("X-Total-Count") ?? data.length)
+  return { leads: data, total }
 }
 
 // Who a lead can be handed to — superadmin/admin only, the backend 403s
