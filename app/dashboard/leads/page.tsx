@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -49,6 +49,7 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
+import { Skeleton } from "@/components/ui/skeleton"
 import { MoreHorizontalIcon, PencilIcon, Trash2Icon, Loader2Icon, PlusIcon } from "lucide-react"
 import {
   listLeadsPage, deleteLead, createLead, listAssignableUsers, updateLead,
@@ -109,6 +110,8 @@ const EMPTY_NEW_LEAD: NewLead = {
 
 export default function LeadsPage() {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { user: me } = useAuth()
   const canAssign = me?.role === "superadmin" || me?.role === "admin"
   const [leads, setLeads] = useState<Lead[]>([])
@@ -133,8 +136,30 @@ export default function LeadsPage() {
   const [filterType, setFilterType] = useState<"Tous" | LeadType>("Tous")
   const [filterStatus, setFilterStatus] = useState<"Tous" | LeadStatus>("Tous")
   const [filterAssignee, setFilterAssignee] = useState<"Tous" | string>("Tous")
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+
+  // Page/page-size live in the URL (?page=…&pageSize=…), not local state —
+  // that way a refresh, a shared link, or the browser's back/forward button
+  // lands back on the same page instead of resetting to page 1.
+  const pageParam = Number(searchParams.get("page"))
+  const page = pageParam > 0 ? pageParam : 1
+  const pageSizeParam = Number(searchParams.get("pageSize"))
+  const pageSize = PAGE_SIZE_OPTIONS.includes(pageSizeParam) ? pageSizeParam : 10
+
+  function updateParams(updates: Record<string, string | number | undefined>) {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === undefined) params.delete(key)
+      else params.set(key, String(value))
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
+  function setPage(value: number) {
+    // Always write pageSize alongside page so a shared/bookmarked URL is
+    // self-contained instead of silently depending on the default.
+    updateParams({ page: value, pageSize })
+  }
+
   // Bumped to force a re-fetch of the current page after a mutation
   // (create/delete) instead of trying to patch server-side pagination state
   // by hand.
@@ -188,14 +213,16 @@ export default function LeadsPage() {
 
   // If a delete (or a filter change) leaves the current page past the end,
   // snap back instead of showing an empty page with a live "next" disabled
-  // on a page number that no longer exists.
+  // on a page number that no longer exists. Gated on `!loading` — `total`
+  // starts at 0 before the first fetch resolves, which would otherwise make
+  // totalPages briefly look like 1 and immediately kick a URL-restored
+  // ?page=3 back down to 1 before the real count ever arrives.
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (!loading && page > totalPages) setPage(totalPages)
+  }, [loading, page, totalPages])
 
   function changePageSize(value: string) {
-    setPageSize(Number(value))
-    setPage(1)
+    updateParams({ pageSize: value, page: 1 })
   }
 
   async function handleInlineReassign(lead: Lead, value: string) {
@@ -361,12 +388,23 @@ export default function LeadsPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={canAssign ? 7 : 6} className="text-center text-muted-foreground py-10">
-                  <Loader2Icon className="inline animate-spin mr-2" size={16} />
-                  Chargement…
-                </TableCell>
-              </TableRow>
+              // Skeleton rows reserve the same height a full page of real
+              // rows would take, so the table doesn't collapse then snap
+              // back open on every page/filter change.
+              Array.from({ length: pageSize }).map((_, i) => (
+                <TableRow key={`skeleton-${i}`}>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell>
+                    <Skeleton className="h-3 w-24 mb-1.5" />
+                    <Skeleton className="h-3 w-32" />
+                  </TableCell>
+                  <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                  {canAssign && <TableCell><Skeleton className="h-8 w-40" /></TableCell>}
+                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                </TableRow>
+              ))
             ) : leads.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={canAssign ? 7 : 6} className="text-center text-muted-foreground py-10">
@@ -467,16 +505,16 @@ export default function LeadsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1 || loading}
               >
                 Précédent
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages || loading}
               >
                 Suivant
               </Button>
