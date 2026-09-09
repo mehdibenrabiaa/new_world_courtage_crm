@@ -30,7 +30,7 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
-import { Loader2Icon, Trash2Icon } from "lucide-react"
+import { Loader2Icon, Trash2Icon, UsersRoundIcon } from "lucide-react"
 import { listLeadContacts, deleteLeadContact, type LeadContact } from "@/lib/api"
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50]
@@ -182,7 +182,12 @@ export default function ContactsPage() {
             Chargement…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-sm text-muted-foreground">Aucun contact pour le moment.</div>
+          <div className="border-2 border-dashed rounded-xl py-16 flex flex-col items-center gap-2 text-muted-foreground">
+            <UsersRoundIcon size={20} />
+            <p className="text-sm">
+              {search ? "Aucun contact ne correspond à votre recherche." : "Aucun contact pour le moment."}
+            </p>
+          </div>
         ) : (
           <>
             <Table containerClassName="max-h-[70vh] overflow-y-auto rounded-xl border">
