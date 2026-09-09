@@ -241,7 +241,14 @@ export default function UsersPage() {
                         onValueChange={(v) => v != null && setLocal(u.id, { role: v as UserRole })}
                       >
                         <SelectTrigger size="sm" className="w-56" disabled={saving}>
-                          <SelectValue>{(v: string) => ROLE_LABELS[v as UserRole] ?? v}</SelectValue>
+                          {saving && isDirty ? (
+                            <span className="flex items-center gap-1.5 text-muted-foreground">
+                              <Loader2Icon size={13} className="animate-spin" />
+                              Enregistrement…
+                            </span>
+                          ) : (
+                            <SelectValue>{(v: string) => ROLE_LABELS[v as UserRole] ?? v}</SelectValue>
+                          )}
                         </SelectTrigger>
                         <SelectContent>
                           {ASSIGNABLE_ROLES.map((r) => (

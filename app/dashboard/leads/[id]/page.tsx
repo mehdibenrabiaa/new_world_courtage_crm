@@ -197,9 +197,16 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                     onValueChange={(v) => v != null && handleReassign(v)}
                   >
                     <SelectTrigger size="sm" className="w-48" disabled={reassigning} aria-label="Assigné à">
-                      <SelectValue>
-                        {(v: string) => (v === "unassigned" ? "Non assigné" : assignableUsers.find((u) => String(u.id) === v)?.name ?? v)}
-                      </SelectValue>
+                      {reassigning ? (
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Loader2Icon size={13} className="animate-spin" />
+                          Enregistrement…
+                        </span>
+                      ) : (
+                        <SelectValue>
+                          {(v: string) => (v === "unassigned" ? "Non assigné" : assignableUsers.find((u) => String(u.id) === v)?.name ?? v)}
+                        </SelectValue>
+                      )}
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="unassigned">Non assigné</SelectItem>

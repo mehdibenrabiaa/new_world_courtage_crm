@@ -51,7 +51,7 @@ import {
 import { useToastManager } from "@/components/ui/toast"
 import { MoreHorizontalIcon, PencilIcon, Trash2Icon, Loader2Icon, PlusIcon } from "lucide-react"
 import {
-  listLeads, deleteLead, createLead, listAssignableUsers,
+  listLeads, deleteLead, createLead, listAssignableUsers, updateLead,
   type Lead, type LeadStatus, type LeadType, type LeadCreate, type LeadAssignee,
 } from "@/lib/api"
 import { CATEGORIES } from "@/lib/categories"
@@ -123,6 +123,7 @@ export default function LeadsPage() {
   const [newLeadAssigneeId, setNewLeadAssigneeId] = useState<string>("unassigned")
 
   const [assignableUsers, setAssignableUsers] = useState<LeadAssignee[]>([])
+  const [reassigningId, setReassigningId] = useState<number | null>(null)
 
   const [search, setSearch] = useState("")
   const [filterType, setFilterType] = useState<"Tous" | LeadType>("Tous")
@@ -163,6 +164,21 @@ export default function LeadsPage() {
   function changePageSize(value: string) {
     setPageSize(Number(value))
     setPage(1)
+  }
+
+  async function handleInlineReassign(lead: Lead, value: string) {
+    setReassigningId(lead.id)
+    try {
+      const updated = value === "unassigned"
+        ? await updateLead(lead.id, { unassign: true })
+        : await updateLead(lead.id, { assigned_to_id: Number(value) })
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? updated : l)))
+    } catch (err) {
+      console.error(err)
+      toastManager.add({ title: "Impossible de réassigner ce lead", type: "error" })
+    } finally {
+      setReassigningId(null)
+    }
   }
 
   function openLead(l: Lead) {
@@ -336,10 +352,28 @@ export default function LeadsPage() {
                   </Badge>
                 </TableCell>
                 {canAssign && (
-                  <TableCell className="text-sm">
-                    {l.assigned_to
-                      ? l.assigned_to.name
-                      : <span className="text-muted-foreground">Non assigné</span>}
+                  <TableCell className="text-sm" onClick={(e) => e.stopPropagation()}>
+                    <Select
+                      value={l.assigned_to ? String(l.assigned_to.id) : "unassigned"}
+                      onValueChange={(v) => v != null && handleInlineReassign(l, v)}
+                    >
+                      <SelectTrigger size="sm" className="w-40" disabled={reassigningId === l.id} aria-label="Assigné à">
+                        {reassigningId === l.id ? (
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <Loader2Icon size={13} className="animate-spin" />
+                            Enregistrement…
+                          </span>
+                        ) : (
+                          <SelectValue>
+                            {(v: string) => assigneeLabel(v, assignableUsers)}
+                          </SelectValue>
+                        )}
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Non assigné</SelectItem>
+                        {assignableUsers.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                 )}
                 <TableCell>{formatDate(l.created_at)}</TableCell>
