@@ -128,6 +128,10 @@ export function listLeadContacts() {
   return backendRequest<LeadContact[]>("/api/leads/contacts")
 }
 
+export function deleteLeadContact(id: number) {
+  return backendRequest<void>(`/api/leads/contacts/${id}`, { method: "DELETE" })
+}
+
 // The published, ordered questions for a questionnaire (e.g. "garage") —
 // used to group/sort a lead's saved answers the same way the public site's
 // form presents them (by section, in section/question order).
