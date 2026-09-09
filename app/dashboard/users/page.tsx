@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
@@ -22,11 +22,15 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
-import { PlusIcon, Loader2Icon } from "lucide-react"
+import { PlusIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import type { UserRole } from "@/lib/auth"
-import { listUsers, createUser, updateUser, type ManagedUser } from "@/lib/api"
+import { listUsers, createUser, updateUser, deleteUser, type ManagedUser } from "@/lib/api"
 
 const ROLE_LABELS: Record<UserRole, string> = {
   superadmin: "Super-administrateur",
@@ -42,28 +46,75 @@ export default function UsersPage() {
   const { user: me } = useAuth()
   const toastManager = useToastManager()
 
+  // savedUsers mirrors the backend; users is the working copy that role/
+  // active edits touch locally until "Enregistrer" actually sends them.
+  const [savedUsers, setSavedUsers] = useState<ManagedUser[]>([])
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [loading, setLoading] = useState(true)
-  const [savingId, setSavingId] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState("")
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "consultant" as UserRole })
 
-  // Only a superadmin can manage accounts — bounce anyone else back before
-  // they see the page contents (the backend would 403 the data call anyway,
-  // this just avoids the empty/broken flash).
+  const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   useEffect(() => {
     if (me && me.role !== "superadmin") router.replace("/dashboard")
   }, [me, router])
 
   useEffect(() => {
     listUsers()
-      .then(setUsers)
+      .then((data) => { setSavedUsers(data); setUsers(data) })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  const dirtyIds = useMemo(() => {
+    const savedById = new Map(savedUsers.map((u) => [u.id, u]))
+    return users.filter((u) => {
+      const saved = savedById.get(u.id)
+      return saved && (saved.role !== u.role || saved.active !== u.active)
+    }).map((u) => u.id)
+  }, [users, savedUsers])
+
+  function setLocal(id: number, patch: Partial<Pick<ManagedUser, "role" | "active">>) {
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)))
+  }
+
+  function discard() {
+    setUsers(savedUsers)
+  }
+
+  async function save() {
+    setSaving(true)
+    const savedById = new Map(savedUsers.map((u) => [u.id, u]))
+    const toSave = users.filter((u) => dirtyIds.includes(u.id))
+    try {
+      const results = await Promise.all(
+        toSave.map((u) => {
+          const saved = savedById.get(u.id)!
+          const patch: { role?: UserRole; active?: boolean } = {}
+          if (saved.role !== u.role) patch.role = u.role
+          if (saved.active !== u.active) patch.active = u.active
+          return updateUser(u.id, patch)
+        })
+      )
+      setUsers((prev) => prev.map((u) => results.find((r) => r.id === u.id) ?? u))
+      setSavedUsers((prev) => prev.map((u) => results.find((r) => r.id === u.id) ?? u))
+      toastManager.add({ title: "Utilisateurs mis à jour.", type: "success" })
+    } catch (err) {
+      toastManager.add({
+        title: "Échec de l'enregistrement",
+        description: err instanceof Error ? err.message : "Une erreur est survenue.",
+        type: "error",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function handleCreate() {
     setFormError("")
@@ -82,6 +133,7 @@ export default function UsersPage() {
         password: form.password, role: form.role,
       })
       setUsers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+      setSavedUsers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
       setCreateOpen(false)
       setForm({ name: "", email: "", password: "", role: "consultant" })
     } catch (err) {
@@ -91,28 +143,22 @@ export default function UsersPage() {
     }
   }
 
-  async function handleRoleChange(u: ManagedUser, role: UserRole) {
-    if (role === u.role) return
-    setSavingId(u.id)
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      const updated = await updateUser(u.id, { role })
-      setUsers((prev) => prev.map((x) => (x.id === u.id ? updated : x)))
+      await deleteUser(deleteTarget.id)
+      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id))
+      setSavedUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id))
+      setDeleteTarget(null)
     } catch (err) {
-      toastManager.add({ title: err instanceof Error ? err.message : "Une erreur est survenue.", type: "error" })
+      toastManager.add({
+        title: "Impossible de supprimer cet utilisateur",
+        description: err instanceof Error ? err.message : "Une erreur est survenue.",
+        type: "error",
+      })
     } finally {
-      setSavingId(null)
-    }
-  }
-
-  async function handleActiveToggle(u: ManagedUser) {
-    setSavingId(u.id)
-    try {
-      const updated = await updateUser(u.id, { active: !u.active })
-      setUsers((prev) => prev.map((x) => (x.id === u.id ? updated : x)))
-    } catch (err) {
-      toastManager.add({ title: err instanceof Error ? err.message : "Une erreur est survenue.", type: "error" })
-    } finally {
-      setSavingId(null)
+      setDeleting(false)
     }
   }
 
@@ -141,10 +187,26 @@ export default function UsersPage() {
           <p className="text-sm text-muted-foreground">
             Comptes CRM et rôles. Le détail des permissions par rôle se configure sur la page Permissions.
           </p>
-          <Button onClick={() => { setForm({ name: "", email: "", password: "", role: "consultant" }); setFormError(""); setCreateOpen(true) }}>
-            <PlusIcon />
-            Nouvel utilisateur
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {dirtyIds.length > 0 && (
+              <>
+                <span className="text-xs text-muted-foreground">
+                  {dirtyIds.length} modification{dirtyIds.length > 1 ? "s" : ""} non enregistrée{dirtyIds.length > 1 ? "s" : ""}
+                </span>
+                <Button variant="outline" size="sm" onClick={discard} disabled={saving}>
+                  Annuler
+                </Button>
+                <Button size="sm" onClick={save} disabled={saving}>
+                  {saving && <Loader2Icon size={14} className="animate-spin" />}
+                  Enregistrer
+                </Button>
+              </>
+            )}
+            <Button onClick={() => { setForm({ name: "", email: "", password: "", role: "consultant" }); setFormError(""); setCreateOpen(true) }}>
+              <PlusIcon />
+              Nouvel utilisateur
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -161,42 +223,57 @@ export default function UsersPage() {
                 <TableHead>Rôle</TableHead>
                 <TableHead>Actif</TableHead>
                 <TableHead>Créé le</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="font-medium">
-                    {u.name} {u.id === me?.id && <Badge variant="secondary" className="ml-1.5">vous</Badge>}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={u.role}
-                      onValueChange={(v) => v != null && handleRoleChange(u, v as UserRole)}
-                    >
-                      <SelectTrigger size="sm" className="w-56" disabled={savingId === u.id}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ASSIGNABLE_ROLES.map((r) => (
-                          <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Checkbox
-                      checked={u.active}
-                      disabled={savingId === u.id}
-                      onCheckedChange={() => handleActiveToggle(u)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {new Date(u.created_at).toLocaleDateString("fr-FR")}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {users.map((u) => {
+                const isDirty = dirtyIds.includes(u.id)
+                return (
+                  <TableRow key={u.id} className={isDirty ? "bg-amber-50" : undefined}>
+                    <TableCell className="font-medium">
+                      {u.name} {u.id === me?.id && <Badge variant="secondary" className="ml-1.5">vous</Badge>}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={u.role}
+                        onValueChange={(v) => v != null && setLocal(u.id, { role: v as UserRole })}
+                      >
+                        <SelectTrigger size="sm" className="w-56" disabled={saving}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ASSIGNABLE_ROLES.map((r) => (
+                            <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={u.active}
+                        disabled={saving}
+                        onCheckedChange={() => setLocal(u.id, { active: !u.active })}
+                      />
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {new Date(u.created_at).toLocaleDateString("fr-FR")}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        disabled={u.id === me?.id}
+                        onClick={() => setDeleteTarget(u)}
+                      >
+                        <Trash2Icon size={14} />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         )}
@@ -247,6 +324,27 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {deleteTarget?.name} ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est définitive. Ce compte ne pourra plus se connecter au CRM.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting ? <><Loader2Icon size={14} className="animate-spin" /> Suppression…</> : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

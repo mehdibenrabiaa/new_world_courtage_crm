@@ -245,6 +245,10 @@ export function updateUser(id: number, payload: UserUpdatePayload) {
   })
 }
 
+export function deleteUser(id: number) {
+  return backendRequest<void>(`/api/users/${id}`, { method: "DELETE" })
+}
+
 export type RolePermissionRow = {
   role: UserRole
   resource: PermissionResource
