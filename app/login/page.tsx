@@ -52,6 +52,7 @@ export default function LoginPage() {
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
+              name="email"
               type="email"
               autoComplete="username"
               autoFocus
@@ -64,6 +65,7 @@ export default function LoginPage() {
             <Label htmlFor="password">Mot de passe</Label>
             <Input
               id="password"
+              name="password"
               type="password"
               autoComplete="current-password"
               value={password}
