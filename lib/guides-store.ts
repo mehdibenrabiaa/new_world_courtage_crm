@@ -1,3 +1,5 @@
+import { authFetch } from "@/lib/auth"
+
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000"
 
 // ─── Types (used across CRM) ─────────────────────────────────────────────────
@@ -85,28 +87,28 @@ function toApi(g: Omit<Guide, "id" | "createdAt">) {
 export async function getGuides(category?: string): Promise<Guide[]> {
   const url = new URL(`${BASE}/api/guides/`)
   if (category) url.searchParams.set("category", category)
-  const res = await fetch(url.toString(), { cache: "no-store" })
+  const res = await authFetch(url.toString(), { cache: "no-store" })
   if (!res.ok) throw new Error("Failed to fetch guides")
   const data = await res.json()
   return data.map(fromApi)
 }
 
 export async function getGuide(id: number): Promise<Guide | null> {
-  const res = await fetch(`${BASE}/api/guides/${id}`, { cache: "no-store" })
+  const res = await authFetch(`${BASE}/api/guides/${id}`, { cache: "no-store" })
   if (res.status === 404) return null
   if (!res.ok) throw new Error("Failed to fetch guide")
   return fromApi(await res.json())
 }
 
 export async function getGuideBySlug(slug: string): Promise<Guide | null> {
-  const res = await fetch(`${BASE}/api/guides/slug/${slug}`, { cache: "no-store" })
+  const res = await authFetch(`${BASE}/api/guides/slug/${slug}`, { cache: "no-store" })
   if (res.status === 404) return null
   if (!res.ok) throw new Error("Failed to fetch guide")
   return fromApi(await res.json())
 }
 
 export async function createGuide(partial: Omit<Guide, "id" | "createdAt" | "blocks">): Promise<Guide> {
-  const res = await fetch(`${BASE}/api/guides/`, {
+  const res = await authFetch(`${BASE}/api/guides/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(toApi({ ...partial, blocks: [] })),
@@ -117,7 +119,7 @@ export async function createGuide(partial: Omit<Guide, "id" | "createdAt" | "blo
 }
 
 export async function saveGuide(guide: Guide): Promise<Guide> {
-  const res = await fetch(`${BASE}/api/guides/${guide.id}`, {
+  const res = await authFetch(`${BASE}/api/guides/${guide.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(toApi(guide)),
@@ -127,14 +129,14 @@ export async function saveGuide(guide: Guide): Promise<Guide> {
 }
 
 export async function deleteGuide(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/api/guides/${id}`, { method: "DELETE" })
+  const res = await authFetch(`${BASE}/api/guides/${id}`, { method: "DELETE" })
   if (!res.ok) throw new Error("Failed to delete guide")
 }
 
 export async function uploadGuideImage(guideId: number, file: File): Promise<Guide> {
   const form = new FormData()
   form.append("file", file)
-  const res = await fetch(`${BASE}/api/guides/${guideId}/image`, {
+  const res = await authFetch(`${BASE}/api/guides/${guideId}/image`, {
     method: "POST",
     body: form,
   })

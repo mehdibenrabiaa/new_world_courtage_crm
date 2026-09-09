@@ -1,11 +1,12 @@
 import type { Category } from "@/lib/categories"
+import { authFetch } from "@/lib/auth"
 
 // Trailing slash stripped so a production env var set with one doesn't
 // double up with the leading "/" on every call below.
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000").replace(/\/+$/, "")
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
+  const res = await authFetch(`${BACKEND_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
   })
@@ -20,7 +21,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 // ── Backend API (leads + contacts) ────────────────────────────────────────────
 
 async function backendRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
+  const res = await authFetch(`${BACKEND_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
   })

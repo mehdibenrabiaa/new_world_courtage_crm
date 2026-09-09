@@ -1,3 +1,5 @@
+import { authFetch } from "@/lib/auth"
+
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000"
 
 export type Author = {
@@ -18,14 +20,14 @@ function fromApi(a: any): Author {
 }
 
 export async function getAuthors(): Promise<Author[]> {
-  const res = await fetch(`${BASE}/api/authors/`, { cache: "no-store" })
+  const res = await authFetch(`${BASE}/api/authors/`, { cache: "no-store" })
   if (!res.ok) throw new Error("Failed to fetch authors")
   const data = await res.json()
   return data.map(fromApi)
 }
 
 export async function createAuthor(name: string): Promise<Author> {
-  const res = await fetch(`${BASE}/api/authors/`, {
+  const res = await authFetch(`${BASE}/api/authors/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -36,7 +38,7 @@ export async function createAuthor(name: string): Promise<Author> {
 }
 
 export async function updateAuthor(id: number, name: string): Promise<Author> {
-  const res = await fetch(`${BASE}/api/authors/${id}`, {
+  const res = await authFetch(`${BASE}/api/authors/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -47,7 +49,7 @@ export async function updateAuthor(id: number, name: string): Promise<Author> {
 }
 
 export async function deleteAuthor(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/api/authors/${id}`, { method: "DELETE" })
+  const res = await authFetch(`${BASE}/api/authors/${id}`, { method: "DELETE" })
   if (res.status === 409) throw new Error("in-use")
   if (!res.ok) throw new Error("Failed to delete author")
 }
@@ -55,7 +57,7 @@ export async function deleteAuthor(id: number): Promise<void> {
 export async function uploadAuthorImage(id: number, file: File): Promise<Author> {
   const form = new FormData()
   form.append("file", file)
-  const res = await fetch(`${BASE}/api/authors/${id}/image`, {
+  const res = await authFetch(`${BASE}/api/authors/${id}/image`, {
     method: "POST",
     body: form,
   })

@@ -5,6 +5,7 @@ import * as React from "react"
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import { TeamSwitcher } from "@/components/team-switcher"
+import { useAuth } from "@/components/auth-provider"
 import {
   Sidebar,
   SidebarContent,
@@ -15,11 +16,6 @@ import {
 import { ReceiptTextIcon, UsersIcon, LayoutDashboardIcon, BookOpenIcon, UserIcon, ImageIcon } from "lucide-react"
 
 const data = {
-  user: {
-    name: "New World Courtage",
-    email: "contact@newworldcourtage.fr",
-    avatar: "",
-  },
   teams: [
     {
       name: "New World Courtage",
@@ -66,6 +62,8 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { user } = useAuth()
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -77,7 +75,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain label="Contenu" items={data.navContent} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={{ name: user?.name ?? "", email: user?.email ?? "", avatar: "" }} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
