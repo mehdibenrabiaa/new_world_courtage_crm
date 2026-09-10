@@ -284,6 +284,33 @@ export function deleteContact(id: number) {
   return backendRequest<void>(`/api/contacts/${id}`, { method: "DELETE" })
 }
 
+// ── Notifications ───────────────────────────────────────────────────────────
+
+export type Notification = {
+  id: number
+  type: string
+  message: string
+  link: string | null
+  read: boolean
+  created_at: string
+}
+
+export function listNotifications() {
+  return backendRequest<Notification[]>("/api/notifications/")
+}
+
+export function getUnreadNotificationCount() {
+  return backendRequest<{ count: number }>("/api/notifications/unread-count")
+}
+
+export function markNotificationRead(id: number) {
+  return backendRequest<Notification>(`/api/notifications/${id}/read`, { method: "PATCH" })
+}
+
+export function markAllNotificationsRead() {
+  return backendRequest<void>("/api/notifications/read-all", { method: "PATCH" })
+}
+
 // ── Users & permissions (superadmin only — the backend 403s anyone else) ──────
 
 export type ManagedUser = {
