@@ -82,6 +82,22 @@ export type LeadTask = {
 
 export type LeadAssignee = { id: number; name: string; email: string }
 
+// Uploaded via the public site's Finalisation/booking step (see
+// CarInsuranceForm.js's BookingPanel) — file_url points at a randomly
+// named file on disk (collision- and path-traversal-proof), but
+// original_filename is the name to actually show, since that's what the
+// person who uploaded it recognizes.
+export type LeadDocument = {
+  id: number
+  lead_id: number
+  document_label: string
+  original_filename: string
+  content_type: string | null
+  size_bytes: number
+  file_url: string
+  created_at: string
+}
+
 export type Lead = {
   id: number
   type: LeadType
@@ -99,6 +115,7 @@ export type Lead = {
   sticky_notes: LeadNote[]
   tasks: LeadTask[]
   answers: LeadAnswer[]
+  documents: LeadDocument[]
   created_at: string
   updated_at: string
 }
@@ -150,15 +167,33 @@ export function deleteLeadContact(id: number) {
 // The published, ordered questions for a questionnaire (e.g. "garage") —
 // used to group/sort a lead's saved answers the same way the public site's
 // form presents them (by section, in section/question order).
+export type PublishedQuestionOption = { label: string; value: string }
+
 export type PublishedQuestion = {
   id: number
   key: string
   section: string | null
+  // A colored band header grouping a run of consecutive questions within a
+  // section (e.g. "Sinistralité (36 derniers mois)") — same field the
+  // public site's CarInsuranceForm.js groups by (groupFieldsByEyebrow).
+  eyebrow: string | null
   question: string
   order: number
   type: string
   input_type: string | null
   unit: string | null
+  // Card-style (grid of selectable boxes) vs plain inline radio/checkbox
+  // list — matches the public form's own s.card flag exactly.
+  card: boolean
+  options: PublishedQuestionOption[]
+  // Restricts this question to whichever product(s) it belongs to (null =
+  // shown regardless) — the public form groups fields by this into
+  // separately-headed blocks (see groupFieldsByProduct).
+  products: string[] | null
+  // Shown on its own screen before the step-by-step wizard begins, not one
+  // of its sections — a questionnaire's product-picker question is usually
+  // the one with this set (see the CRM's resolveProductLabels).
+  gate: boolean
 }
 
 export function fetchQuestionnaireQuestions(slug: string) {
@@ -234,6 +269,24 @@ export function updateLead(id: number, payload: LeadUpdate) {
 
 export function deleteLead(id: number) {
   return backendRequest<void>(`/api/leads/${id}`, { method: "DELETE" })
+}
+
+// Goes through the authenticated download route (not the raw file_url,
+// which is an unauthenticated static path and — worse — serves the file
+// under its on-disk random name) so the file saves locally under the name
+// it was actually uploaded with.
+export async function downloadLeadDocument(leadId: number, documentId: number, filename: string) {
+  const res = await authFetch(`${BACKEND_URL}/api/leads/${leadId}/documents/${documentId}/download`)
+  if (!res.ok) throw new Error(`Failed to download document (${res.status})`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = window.document.createElement("a")
+  a.href = url
+  a.download = filename
+  window.document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 export function createLeadNote(leadId: number, payload: { content: string; color?: NoteColor }) {

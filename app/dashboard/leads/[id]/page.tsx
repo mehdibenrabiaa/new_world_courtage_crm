@@ -15,7 +15,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TableSkeleton } from "@/components/table-skeleton"
-import { Tabs, TabsList, TabsTrigger, TabsIndicator } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger, TabsIndicator, TabsContent } from "@/components/ui/tabs"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
@@ -24,18 +24,23 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
-import { Trash2Icon, Loader2Icon } from "lucide-react"
+import { Trash2Icon, Loader2Icon, FileQuestionIcon, StickyNoteIcon, ListTodoIcon } from "lucide-react"
 import { getLead, updateLead, deleteLead, listAssignableUsers, type Lead, type LeadStatus, type LeadAssignee } from "@/lib/api"
 import { GarageLeadFields, GarageLeadFieldsTriggers, garageDraftFrom, type GarageDraft, STATUS_LABELS } from "@/components/leads/garage-lead-fields"
 import { LeadNotesTab } from "@/components/leads/lead-notes-tab"
 import { LeadTasksTab } from "@/components/leads/lead-tasks-tab"
 import { useAuth } from "@/components/auth-provider"
+import { useIsMobile } from "@/hooks/use-mobile"
 
-// This page renders the "garage" (Assurance Garage) lead layout directly.
-// Once other questionnaire types (taxi, immobilier, …) get their own field
-// set, this should dispatch on `lead.type` to the matching sibling of
-// GarageLeadFields — the Notes/Tâches tabs stay as-is either way, since
-// LeadNotesTab/LeadTasksTab only need a lead id and are reused unchanged.
+// Dispatches on `lead.type` (see `isGarage` below): "Assurance Garage" gets
+// its own dedicated field set (GarageLeadFields); any other type falls back
+// to a plain Aperçu recap until it gets its own sibling component the same
+// way GarageLeadFields did. Notes/Tâches stay as-is either way, since
+// LeadNotesTab/LeadTasksTab only need a lead id and are reused unchanged —
+// the reusable Réponses viewer itself (lead-answers-viewer.tsx) already
+// works for any questionnaire, it just isn't wired into the Aperçu fallback
+// yet since that needs a lead.type → questionnaire-slug mapping that
+// doesn't exist until a second questionnaire actually has its own CRM tabs.
 
 const STATUS_STYLES: Record<LeadStatus, string> = {
   new: "bg-blue-100 text-blue-700",
@@ -49,7 +54,7 @@ function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 }
 
-const TAB_VALUES = ["contact", "vehicule", "entreprise", "reponses", "statut", "notes", "taches"]
+const TAB_VALUES = ["contact", "entreprise", "reponses", "documents", "statut", "apercu", "notes", "taches"]
 
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -59,11 +64,24 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const toastManager = useToastManager()
   const { user: me } = useAuth()
   const canAssign = me?.role === "superadmin" || me?.role === "admin"
+  // Same 768px breakpoint as the app's own Sidebar (useIsMobile) — the tab
+  // list switches to a normal horizontal row below it instead of staying a
+  // fixed-width vertical sidebar, which left barely any room for content on
+  // a phone-width screen.
+  const isMobile = useIsMobile()
+
+  const [lead, setLead] = useState<Lead | null>(null)
+  // Only "Assurance Garage" has its own dedicated field set today
+  // (GarageLeadFields) — everything else falls back to a plain read-only
+  // recap (Aperçu) + Notes/Tâches until that type gets its own sibling
+  // component, the same seam this file's own comment above has called for
+  // since before any of this existed.
+  const isGarage = lead?.type === "Assurance Garage"
 
   // Keep the selected tab in the URL (?tab=…) so a refresh (or a shared
-  // link) lands back on the same tab instead of resetting to Contact.
+  // link) lands back on the same tab instead of resetting to Contact/Aperçu.
   const tabParam = searchParams.get("tab")
-  const activeTab = tabParam && TAB_VALUES.includes(tabParam) ? tabParam : "contact"
+  const activeTab = tabParam && TAB_VALUES.includes(tabParam) ? tabParam : (isGarage ? "contact" : "apercu")
 
   function handleTabChange(value: unknown) {
     if (typeof value !== "string") return
@@ -72,7 +90,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
   }
 
-  const [lead, setLead] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<GarageDraft | null>(null)
@@ -180,13 +197,19 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      {/* lg:h-[…] + overflow-hidden clips this region to exactly the
+          viewport space below the h-16 header above — combined with the
+          Tabs row below being lg:flex-1 lg:min-h-0 and only its
+          TabsContent scrolling internally, the tab sidebar (and this
+          Créé le/actions row) then simply aren't part of anything that
+          scrolls, instead of relying on position:sticky. */}
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 md:h-[calc(100svh-4rem)] md:overflow-hidden">
         {error && <p className="text-sm text-destructive">Erreur : {error}</p>}
         {loading && <TableSkeleton rows={8} cols={2} />}
 
         {lead && draft && (
-          <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-            <div className="flex items-center justify-between">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 md:h-full md:min-h-0">
+            <div className="flex items-center justify-between shrink-0">
               <p className="text-sm text-muted-foreground">
                 Créé le {formatDateTime(lead.created_at)} · Mis à jour le {formatDateTime(lead.updated_at)}
               </p>
@@ -196,7 +219,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                     value={lead.assigned_to ? String(lead.assigned_to.id) : "unassigned"}
                     onValueChange={(v) => v != null && handleReassign(v)}
                   >
-                    <SelectTrigger size="sm" className="w-48" disabled={reassigning} aria-label="Assigné à">
+                    <SelectTrigger className="w-48" disabled={reassigning} aria-label="Assigné à">
                       {reassigning ? (
                         <span className="flex items-center gap-1.5 text-muted-foreground">
                           <Loader2Icon size={13} className="animate-spin" />
@@ -224,15 +247,50 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-              <TabsList>
+            <Tabs
+              value={activeTab}
+              onValueChange={handleTabChange}
+              orientation={isMobile ? "horizontal" : "vertical"}
+              className="w-full flex-col md:flex-row-reverse md:items-stretch gap-6 md:min-h-0 md:flex-1"
+            >
+              <TabsList className="shrink-0 rounded-none">
                 <TabsIndicator />
-                <GarageLeadFieldsTriggers hasAnswers={lead.answers.length > 0} />
-                <TabsTrigger value="notes">Notes</TabsTrigger>
-                <TabsTrigger value="taches">Tâches</TabsTrigger>
+                {isGarage ? (
+                  <GarageLeadFieldsTriggers hasAnswers={lead.answers.length > 0} hasDocuments={lead.documents.length > 0} />
+                ) : (
+                  <TabsTrigger value="apercu">
+                    <FileQuestionIcon size={16} /><span className="hidden md:inline">Aperçu</span>
+                  </TabsTrigger>
+                )}
+                <TabsTrigger value="notes">
+                  <StickyNoteIcon size={16} /><span className="hidden md:inline">Notes</span>
+                </TabsTrigger>
+                <TabsTrigger value="taches">
+                  <ListTodoIcon size={16} /><span className="hidden md:inline">Tâches</span>
+                </TabsTrigger>
               </TabsList>
 
-              <GarageLeadFields lead={lead} draft={draft} setDraft={setDraft} />
+              {isGarage ? (
+                <GarageLeadFields lead={lead} draft={draft} setDraft={setDraft} />
+              ) : (
+                <TabsContent value="apercu" className="rounded-xl border p-5 flex flex-col gap-4">
+                  <p className="text-sm text-muted-foreground">
+                    Il n&apos;existe pas encore de formulaire dédié pour les leads « {lead.type} » — seul Assurance Garage en a un pour l&apos;instant. Réponses reçues ci-dessous.
+                  </p>
+                  {lead.answers.length > 0 && (
+                    <table className="border-separate border-spacing-y-1.5 pb-1 text-sm">
+                      <tbody>
+                        {lead.answers.map((a) => (
+                          <tr key={a.id}>
+                            <td className="pr-16 text-gray-400 align-top whitespace-nowrap">{a.question}</td>
+                            <td className="font-medium text-black align-top">{a.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </TabsContent>
+              )}
               <LeadNotesTab leadId={lead.id} initialNotes={lead.sticky_notes} />
               <LeadTasksTab leadId={lead.id} initialTasks={lead.tasks} />
             </Tabs>

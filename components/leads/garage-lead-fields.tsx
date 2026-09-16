@@ -1,170 +1,25 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
-import { Badge } from "@/components/ui/badge"
 import { Field, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import { TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
-import { fetchQuestionnaireQuestions, type Lead, type LeadAnswer, type LeadStatus, type LeadType, type PublishedQuestion } from "@/lib/api"
+import {
+  PaperclipIcon, DownloadIcon, Loader2Icon, UserIcon, Building2Icon, ListChecksIcon, FlagIcon,
+} from "lucide-react"
+import {
+  downloadLeadDocument, fetchQuestionnaireQuestions,
+  type Lead, type LeadStatus, type LeadType, type PublishedQuestion,
+} from "@/lib/api"
 import { CATEGORIES } from "@/lib/categories"
+import { ReponsesStepViewer } from "@/components/leads/lead-answers-viewer"
 
-// A checkbox question's value is a comma-joined list of the checked option
-// labels (see garagiste/devis's handleSubmit: `labels.join(", ")`) — split
-// it back apart to render as separate tags instead of one long string.
-type DisplayAnswer = LeadAnswer & { isMultiChoice: boolean; unit: string | null; isDate: boolean; isVehicleList: boolean; groupLabel: string }
-
-// Questions whose answer is a JSON array of repeating groups (one list of
-// {label, value} fields each — see garagiste/devis's handleSubmit) instead
-// of a plain scalar, and what to call each item ("Véhicule 1", "Associé 1",
-// …) when rendering it. Only flotte/W Garage show up in the Véhicules tab —
-// see VEHICLE_TAB_KEYS below — pct_detention_capital only ever appears in
-// the Réponses tab, under Coordonnées.
-const REPEATING_GROUP_LABELS: Record<string, string> = {
-  flotte_immatriculations: "Véhicule",
-  w_garage_vehicules: "Véhicule",
-  pct_detention_capital: "Associé",
-}
-const VEHICLE_TAB_KEYS = new Set(["flotte_immatriculations", "w_garage_vehicules"])
-
-// "Immatriculations (carte grise) des véhicules" is submitted as a JSON
-// array of vehicles, each a list of {label, value} fields (see
-// garagiste/devis's handleSubmit) — parsed here into one nested bullet per
-// field per vehicle.
-type VehicleField = { label: string; value: string }
-
-// Leads submitted before that JSON format existed stored a flattened
-// "Véhicule 1 : A — B — C — D ; Véhicule 2 : …" string instead, always in
-// this fixed field order (formatFlotteRow only ever omitted a *trailing*
-// field, never a middle one) — split it back into the same labeled shape on
-// a best-effort basis so old leads get the same nested-bullet display.
-const LEGACY_FIELD_LABELS = ["Véhicule", "Immatriculation", "Mode d'achat", "Usage"]
-
-function parseVehicleList(value: string): { fields: VehicleField[] }[] {
-  try {
-    const parsed = JSON.parse(value)
-    if (Array.isArray(parsed) && parsed.every((v) => v && Array.isArray(v.fields))) {
-      return parsed
-    }
-  } catch {
-    // not JSON — legacy flattened string, fall through
-  }
-  return value
-    .split(";")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const withoutPrefix = line.replace(/^Véhicule\s*\d+\s*:\s*/, "")
-      const parts = withoutPrefix.split("—").map((p) => p.trim()).filter(Boolean)
-      return { fields: parts.map((v, i) => ({ label: LEGACY_FIELD_LABELS[i] ?? `Champ ${i + 1}`, value: v })) }
-    })
-}
-
-// Shared between the Réponses tab and the Véhicule tab — the fleet list is
-// shown in both places (per user request), so this is the one place its
-// nested "Véhicule N" / "Associé N" / field bullets are rendered.
-function FleetVehicleList({ vehicles, itemLabel = "Véhicule" }: { vehicles: { fields: VehicleField[] }[]; itemLabel?: string }) {
-  return (
-    <div className="flex flex-col gap-3 text-sm">
-      {vehicles.map((vehicle, i) => (
-        <div key={i} className="flex flex-col gap-1">
-          <span className="text-xs font-semibold text-muted-foreground">{itemLabel} {i + 1}</span>
-          <Table containerClassName="pl-6">
-            <TableBody>
-              {vehicle.fields.map((f, j) => (
-                <TableRow key={j} className="border-0 hover:bg-transparent">
-                  <TableCell className="w-1/3 whitespace-normal p-1 text-muted-foreground">{f.label}</TableCell>
-                  <TableCell className="whitespace-normal p-1 font-medium">{f.value}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-const EUR_FORMATTER = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-// A date-type answer is saved as a plain "YYYY-MM-DD" string (the public
-// site's <input type="date"> value) — parse it as local calendar values
-// (not `new Date(isoString)`, which reads it as UTC and can roll the day
-// back once formatted in a negative-offset timezone) and print it the same
-// French style used everywhere else in the CRM.
-function formatDateValue(value: string) {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!match) return value
-  const [, y, m, d] = match
-  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
-}
-
-// Some answers (e.g. "% détention du capital") carry one number per
-// associate/vehicle in a comma-joined string, same shape as a checkbox
-// answer but not a checkbox — format each number with its unit and keep it
-// as plain text (a currency/percent list doesn't read well as tag pills).
-function formatUnitValue(value: string, unit: string) {
-  return value
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const num = Number(part.replace(/[^\d.-]/g, ""))
-      if (Number.isNaN(num)) return part
-      if (unit === "eur") return EUR_FORMATTER.format(num)
-      if (unit === "percent") return `${num}%`
-      if (unit === "m2") return `${num} m²`
-      return part
-    })
-    .join(", ")
-}
-
-// A handful of leads submitted before garagiste/devis's handleSubmit learned
-// to stringify the "Immatriculations" field's per-vehicle rows ended up with
-// this saved literally — the real per-vehicle data was never captured
-// correctly, so there's nothing to recover; just say so instead of showing
-// the raw garbage.
-function isCorruptedLegacyValue(value: string) {
-  return value.includes("[object Object]")
-}
-
-// Groups a lead's saved answers by section and orders both the sections and
-// the answers within each one to match the published questionnaire's own
-// order — the same order the public site's form asks them in — instead of
-// whatever order they happened to land in lead.answers.
-function groupAnswersBySection(answers: LeadAnswer[], questions: PublishedQuestion[]) {
-  const byKey = new Map(questions.map((q) => [q.key, q]))
-  const sectionOrder: string[] = []
-  for (const q of questions) {
-    const section = q.section ?? "Autres"
-    if (!sectionOrder.includes(section)) sectionOrder.push(section)
-  }
-  if (answers.some((a) => !byKey.has(a.catalog_key))) sectionOrder.push("Autres")
-
-  const bySection = new Map<string, DisplayAnswer[]>()
-  for (const a of answers) {
-    const question = byKey.get(a.catalog_key)
-    const section = question?.section ?? "Autres"
-    if (!bySection.has(section)) bySection.set(section, [])
-    bySection.get(section)!.push({
-      ...a,
-      isMultiChoice: question?.type === "checkbox",
-      unit: question?.unit ?? null,
-      isDate: question?.input_type === "date",
-      isVehicleList: a.catalog_key in REPEATING_GROUP_LABELS,
-      groupLabel: REPEATING_GROUP_LABELS[a.catalog_key] ?? "Véhicule",
-    })
-  }
-  for (const list of bySection.values()) {
-    list.sort((a, b) => (byKey.get(a.catalog_key)?.order ?? Infinity) - (byKey.get(b.catalog_key)?.order ?? Infinity))
-  }
-
-  return sectionOrder
-    .filter((section) => bySection.has(section))
-    .map((section) => ({ section, answers: bySection.get(section)! }))
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} Ko`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
 }
 
 const STATUSES: LeadStatus[] = ["new", "contacted", "qualified", "converted", "lost"]
@@ -211,15 +66,32 @@ export function garageDraftFrom(l: Lead): GarageDraft {
 }
 
 // Tab triggers for this field set, rendered by the parent's shared
-// <TabsList> alongside the Notes/Tâches triggers.
-export function GarageLeadFieldsTriggers({ hasAnswers }: { hasAnswers: boolean }) {
+// <TabsList> alongside the Notes/Tâches triggers. The label is hidden below
+// md (768px, same breakpoint the tab list itself switches orientation at —
+// see page.tsx's isMobile) so a cramped phone-width horizontal tab row
+// shows just the icons instead of overflowing into a scrollable text strip.
+export function GarageLeadFieldsTriggers({ hasAnswers, hasDocuments }: { hasAnswers: boolean; hasDocuments: boolean }) {
   return (
     <Fragment>
-      <TabsTrigger value="contact">Contact</TabsTrigger>
-      <TabsTrigger value="vehicule">Véhicules</TabsTrigger>
-      <TabsTrigger value="entreprise">Entreprise</TabsTrigger>
-      {hasAnswers && <TabsTrigger value="reponses">Réponses</TabsTrigger>}
-      <TabsTrigger value="statut">Statut</TabsTrigger>
+      <TabsTrigger value="contact">
+        <UserIcon size={16} /><span className="hidden md:inline">Coordonnées</span>
+      </TabsTrigger>
+      <TabsTrigger value="entreprise">
+        <Building2Icon size={16} /><span className="hidden md:inline">Entreprise</span>
+      </TabsTrigger>
+      {hasAnswers && (
+        <TabsTrigger value="reponses">
+          <ListChecksIcon size={16} /><span className="hidden md:inline">Réponses</span>
+        </TabsTrigger>
+      )}
+      {hasDocuments && (
+        <TabsTrigger value="documents">
+          <PaperclipIcon size={16} /><span className="hidden md:inline">Documents</span>
+        </TabsTrigger>
+      )}
+      <TabsTrigger value="statut">
+        <FlagIcon size={16} /><span className="hidden md:inline">Statut</span>
+      </TabsTrigger>
     </Fragment>
   )
 }
@@ -234,49 +106,49 @@ export function GarageLeadFields({
   setDraft: (update: (d: GarageDraft | null) => GarageDraft | null) => void
 }) {
   const [questions, setQuestions] = useState<PublishedQuestion[]>([])
+  const [downloadingId, setDownloadingId] = useState<number | null>(null)
 
   useEffect(() => {
     fetchQuestionnaireQuestions("garage").then(setQuestions).catch(console.error)
   }, [])
 
-  const sections = groupAnswersBySection(lead.answers, questions)
-  const vehicleListAnswers = lead.answers.filter((a) => VEHICLE_TAB_KEYS.has(a.catalog_key) && !isCorruptedLegacyValue(a.value))
+  async function handleDownload(documentId: number, filename: string) {
+    setDownloadingId(documentId)
+    try {
+      await downloadLeadDocument(lead.id, documentId, filename)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   return (
     <Fragment>
-      <TabsContent value="contact" className="rounded-xl border p-5 flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <FieldLabel className="font-normal text-muted-foreground">Nom</FieldLabel>
-            <FieldTitle>{draft.name || "—"}</FieldTitle>
-          </Field>
-          <Field>
-            <FieldLabel className="font-normal text-muted-foreground">Téléphone</FieldLabel>
-            <FieldTitle>{draft.phone || "—"}</FieldTitle>
-          </Field>
-        </div>
-        <Field>
-          <FieldLabel className="font-normal text-muted-foreground">Email</FieldLabel>
-          <FieldTitle>{draft.email || "—"}</FieldTitle>
-        </Field>
-      </TabsContent>
-
-      <TabsContent value="vehicule" className="rounded-xl border p-5 flex flex-col gap-6">
-        {vehicleListAnswers.length > 0 ? (
-          vehicleListAnswers.map((a) => (
-            <div key={a.id} className="flex flex-col gap-2">
-              <span
-                className="text-xs font-semibold uppercase tracking-wide text-black"
-                style={{ backgroundColor: "#f4f4f4", padding: "8px 5px" }}
-              >
-                {a.question}
-              </span>
-              <FleetVehicleList vehicles={parseVehicleList(a.value)} />
-            </div>
-          ))
-        ) : (
-          <p className="text-sm text-muted-foreground">Aucune information véhicule pour ce lead.</p>
-        )}
+      {/* representant_legal/mobile/email_principal are real "Coordonnées"
+          questions on the public form (type: input) — they just end up on
+          dedicated Lead columns (name/phone/email) instead of a generic
+          LeadAnswer row (see garagiste/devis's IDENTITY_KEYS). Shown the
+          same way the public form itself displays already-known answers —
+          its own "prefilledFields" recap table (label muted, value bold),
+          not a live input box. */}
+      <TabsContent value="contact" className="rounded-xl border p-5">
+        <table className="border-separate border-spacing-y-1.5 pb-1 text-sm">
+          <tbody>
+            <tr>
+              <td className="pr-16 text-gray-400 align-top whitespace-nowrap">Nom et prénom</td>
+              <td className="font-medium text-black align-top">{draft.name || "—"}</td>
+            </tr>
+            <tr>
+              <td className="pr-16 text-gray-400 align-top whitespace-nowrap">Mobile</td>
+              <td className="font-medium text-black align-top">{draft.phone || "—"}</td>
+            </tr>
+            <tr>
+              <td className="pr-16 text-gray-400 align-top whitespace-nowrap">Email principal</td>
+              <td className="font-medium text-black align-top">{draft.email || "—"}</td>
+            </tr>
+          </tbody>
+        </table>
       </TabsContent>
 
       <TabsContent value="entreprise" className="rounded-xl border p-5">
@@ -292,40 +164,40 @@ export function GarageLeadFields({
         </div>
       </TabsContent>
 
+      {/* The public form itself, reproduced whole (CarInsuranceForm.js) —
+          same step tabs bar, same Précédent/Suivant navigation, same field
+          components — frozen read-only on the client's actual submission
+          instead of a live, editable wizard. */}
       {lead.answers.length > 0 && (
-        <TabsContent value="reponses" className="rounded-xl border p-5 flex flex-col gap-5">
-          {sections.map(({ section, answers }) => (
-            <div key={section} className="flex flex-col gap-1.5">
-              <h3
-                className="text-xs font-semibold uppercase tracking-wide text-black"
-                style={{ backgroundColor: "#f4f4f4", padding: "8px 5px" }}
-              >
-                {section}
-              </h3>
-              <div className="flex flex-col divide-y">
-                {answers.map((a) => (
-                  <div key={a.id} className={`flex gap-4 py-2.5 text-sm ${a.isVehicleList && !isCorruptedLegacyValue(a.value) ? "flex-col" : "items-center justify-between"}`}>
-                    <span className="text-muted-foreground">{a.question}</span>
-                    {isCorruptedLegacyValue(a.value) ? (
-                      <span className="text-muted-foreground italic text-right">Donnée non disponible</span>
-                    ) : a.isVehicleList ? (
-                      <FleetVehicleList vehicles={parseVehicleList(a.value)} itemLabel={a.groupLabel} />
-                    ) : a.isMultiChoice || a.unit === "percent" ? (
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        {a.value.split(",").map((v) => v.trim()).filter(Boolean).map((v, i) => (
-                          <Badge key={`${v}-${i}`} variant="secondary">{a.unit ? formatUnitValue(v, a.unit) : v}</Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="font-medium text-right">
-                        {a.isDate ? formatDateValue(a.value) : a.unit ? formatUnitValue(a.value, a.unit) : a.value}
-                      </span>
-                    )}
-                  </div>
-                ))}
+        <TabsContent value="reponses" className="rounded-xl border p-5">
+          <ReponsesStepViewer answers={lead.answers} questions={questions} />
+        </TabsContent>
+      )}
+
+      {lead.documents.length > 0 && (
+        <TabsContent value="documents" className="rounded-xl border p-5">
+          <div className="flex flex-col divide-y">
+            {lead.documents.map((doc) => (
+              <div key={doc.id} className="flex items-center gap-3 py-3">
+                <PaperclipIcon size={16} className="shrink-0 text-muted-foreground" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{doc.original_filename}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {doc.document_label} · {formatFileSize(doc.size_bytes)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDownload(doc.id, doc.original_filename)}
+                  disabled={downloadingId === doc.id}
+                  className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-primary hover:underline disabled:opacity-50"
+                >
+                  {downloadingId === doc.id ? <Loader2Icon size={14} className="animate-spin" /> : <DownloadIcon size={14} />}
+                  Télécharger
+                </button>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </TabsContent>
       )}
 
