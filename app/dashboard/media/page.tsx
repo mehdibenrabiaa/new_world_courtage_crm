@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
@@ -17,7 +18,8 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
-import { Trash2Icon, Loader2Icon, ImageOffIcon } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Trash2Icon, Loader2Icon, ImageOffIcon, XIcon } from "lucide-react"
 import { listMedia, deleteMedia, type MediaFile } from "@/lib/media-store"
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -43,6 +45,9 @@ export default function MediaPage() {
   const [filterUsage, setFilterUsage] = useState<"Tous" | "used" | "unused">("Tous")
   const [deleteTarget, setDeleteTarget] = useState<MediaFile | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const toastManager = useToastManager()
 
   useEffect(() => {
@@ -70,6 +75,48 @@ export default function MediaPage() {
 
   const unusedCount = files.filter((f) => !f.inUse).length
   const totalSize = files.reduce((sum, f) => sum + f.size, 0)
+
+  const selectedFiles = files.filter((f) => selected.has(f.path))
+  const selectedInUseCount = selectedFiles.filter((f) => f.inUse).length
+
+  function toggleSelected(path: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  function selectAllFiltered() {
+    setSelected(new Set(filtered.map((f) => f.path)))
+  }
+
+  function clearSelection() {
+    setSelected(new Set())
+  }
+
+  async function confirmBulkDelete() {
+    setBulkDeleting(true)
+    const results = await Promise.allSettled(selectedFiles.map((f) => deleteMedia(f.path, true)))
+    const failedPaths = new Set(
+      selectedFiles.filter((_, i) => results[i].status === "rejected").map((f) => f.path)
+    )
+    setFiles((prev) => prev.filter((f) => !selected.has(f.path) || failedPaths.has(f.path)))
+    setSelected(failedPaths)
+    setBulkDeleting(false)
+    setBulkDeleteOpen(false)
+    const succeeded = selectedFiles.length - failedPaths.size
+    if (succeeded > 0) {
+      toastManager.add({ title: `${succeeded} fichier${succeeded > 1 ? "s" : ""} supprimé${succeeded > 1 ? "s" : ""}`, type: "success" })
+    }
+    if (failedPaths.size > 0) {
+      toastManager.add({
+        title: `${failedPaths.size} fichier${failedPaths.size > 1 ? "s n'ont" : " n'a"} pas pu être supprimé${failedPaths.size > 1 ? "s" : ""}`,
+        type: "error",
+      })
+    }
+  }
 
   async function confirmDelete(force: boolean) {
     if (!deleteTarget) return
@@ -145,6 +192,30 @@ export default function MediaPage() {
           </div>
         </div>
 
+        {!loading && filtered.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {selected.size > 0 ? (
+              <div className="flex items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2">
+                <span className="text-sm font-medium">
+                  {selected.size} sélectionné{selected.size > 1 ? "s" : ""}
+                </span>
+                <Button variant="ghost" size="sm" onClick={clearSelection}>
+                  <XIcon size={13} />
+                  Désélectionner
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+                  <Trash2Icon size={13} />
+                  Supprimer
+                </Button>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" onClick={selectAllFiltered}>
+                Sélectionner tout ({filtered.length})
+              </Button>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center text-muted-foreground gap-2 py-16">
             <Loader2Icon size={18} className="animate-spin" />
@@ -157,42 +228,64 @@ export default function MediaPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {filtered.map((f) => (
-              <div key={f.path} className="group/media border rounded-xl overflow-hidden flex flex-col bg-card">
-                <div className="relative aspect-square bg-muted">
-                  <img src={f.url} alt={f.path} className="w-full h-full object-cover" />
-                  <Badge
-                    variant="secondary"
-                    className={
-                      "absolute top-1.5 left-1.5 text-[10px] " +
-                      (f.inUse ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")
-                    }
-                  >
-                    {f.inUse ? "Utilisé" : "Non utilisé"}
-                  </Badge>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(f)}
-                    className="absolute top-1.5 right-1.5 rounded-full bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/70 group-hover/media:opacity-100"
-                    aria-label="Supprimer"
-                  >
-                    <Trash2Icon size={13} />
-                  </button>
-                </div>
-                <div className="p-2.5 flex flex-col gap-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge variant="outline" className="text-[10px] shrink-0">
-                      {CATEGORY_LABELS[f.category] ?? f.category}
+            {filtered.map((f) => {
+              const isSelected = selected.has(f.path)
+              return (
+                <div
+                  key={f.path}
+                  className={
+                    "group/media border rounded-xl overflow-hidden flex flex-col bg-card cursor-pointer transition-shadow " +
+                    (isSelected ? "ring-2 ring-primary" : "")
+                  }
+                  onClick={() => toggleSelected(f.path)}
+                >
+                  <div className="relative aspect-square bg-muted">
+                    <img src={f.url} alt={f.path} className="w-full h-full object-cover" />
+                    <div
+                      className={
+                        "absolute top-1.5 left-1.5 rounded-md bg-white/90 p-0.5 shadow-sm transition-opacity " +
+                        (isSelected ? "opacity-100" : "opacity-0 group-hover/media:opacity-100")
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox checked={isSelected} onCheckedChange={() => toggleSelected(f.path)} aria-label="Sélectionner" />
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        "absolute bottom-1.5 left-1.5 text-[10px] " +
+                        (f.inUse ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")
+                      }
+                    >
+                      {f.inUse ? "Utilisé" : "Non utilisé"}
                     </Badge>
-                    <span className="text-[11px] text-muted-foreground shrink-0">{formatSize(f.size)}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(f) }}
+                      className="absolute top-1.5 right-1.5 rounded-full bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/70 group-hover/media:opacity-100"
+                      aria-label="Supprimer"
+                    >
+                      <Trash2Icon size={13} />
+                    </button>
                   </div>
-                  <span className="text-[11px] text-muted-foreground truncate" title={f.path}>
-                    {f.path.split("/").pop()}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">{formatDate(f.modifiedAt)}</span>
+                  <div className="p-2.5 flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant="outline" className="text-[10px] shrink-0">
+                        {CATEGORY_LABELS[f.category] ?? f.category}
+                      </Badge>
+                      <span className="text-[11px] text-muted-foreground shrink-0">{formatSize(f.size)}</span>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="text-[11px] text-muted-foreground truncate" />}>
+                        {f.path.split("/").pop()}
+                      </TooltipTrigger>
+                      <TooltipContent>{f.path}</TooltipContent>
+                    </Tooltip>
+                    <span className="text-[11px] text-muted-foreground">{formatDate(f.modifiedAt)}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -229,6 +322,32 @@ export default function MediaPage() {
               {deleting
                 ? <><Loader2Icon size={14} className="animate-spin" /> Suppression…</>
                 : deleteTarget?.inUse ? "Supprimer quand même" : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={(open) => !open && setBulkDeleteOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {selected.size} fichier{selected.size > 1 ? "s" : ""} ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedInUseCount > 0 ? (
+                <>
+                  {selectedInUseCount} des fichiers sélectionnés {selectedInUseCount > 1 ? "sont actuellement utilisés" : "est actuellement utilisé"}.
+                  Les supprimer cassera ces images à leur emplacement. Cette action est définitive.
+                </>
+              ) : (
+                "Cette action est définitive."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmBulkDelete} disabled={bulkDeleting}>
+              {bulkDeleting
+                ? <><Loader2Icon size={14} className="animate-spin" /> Suppression…</>
+                : "Supprimer"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

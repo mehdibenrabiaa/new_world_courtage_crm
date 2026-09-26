@@ -23,12 +23,15 @@ import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input"
+import Link from "next/link"
 import { useToastManager } from "@/components/ui/toast"
-import { Trash2Icon, Loader2Icon, FileQuestionIcon, StickyNoteIcon, ListTodoIcon } from "lucide-react"
+import { Trash2Icon, Loader2Icon, FileQuestionIcon, StickyNoteIcon, ListTodoIcon, HistoryIcon, CopyIcon } from "lucide-react"
 import { getLead, updateLead, deleteLead, listAssignableUsers, type Lead, type LeadStatus, type LeadAssignee } from "@/lib/api"
 import { GarageLeadFields, GarageLeadFieldsTriggers, garageDraftFrom, type GarageDraft, STATUS_LABELS } from "@/components/leads/garage-lead-fields"
 import { LeadNotesTab } from "@/components/leads/lead-notes-tab"
 import { LeadTasksTab } from "@/components/leads/lead-tasks-tab"
+import { LeadActivityTab } from "@/components/leads/lead-activity-tab"
 import { useAuth } from "@/components/auth-provider"
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -54,7 +57,7 @@ function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 }
 
-const TAB_VALUES = ["contact", "entreprise", "reponses", "documents", "statut", "apercu", "notes", "taches"]
+const TAB_VALUES = ["contact", "entreprise", "reponses", "documents", "statut", "apercu", "notes", "taches", "activite"]
 
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -77,11 +80,17 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   // component, the same seam this file's own comment above has called for
   // since before any of this existed.
   const isGarage = lead?.type === "Assurance Garage"
+  // The activity timeline shows who did what (reassignments, other staff's
+  // edits) — hidden from consultants entirely, not just gated by the
+  // ordinary "leads" view/edit permission (the backend 403s them on the
+  // endpoint too, see routers/leads.py's list_lead_activity).
+  const canSeeActivity = me?.role !== "consultant"
 
   // Keep the selected tab in the URL (?tab=…) so a refresh (or a shared
   // link) lands back on the same tab instead of resetting to Contact/Aperçu.
   const tabParam = searchParams.get("tab")
-  const activeTab = tabParam && TAB_VALUES.includes(tabParam) ? tabParam : (isGarage ? "contact" : "apercu")
+  const validTabs = canSeeActivity ? TAB_VALUES : TAB_VALUES.filter((t) => t !== "activite")
+  const activeTab = tabParam && validTabs.includes(tabParam) ? tabParam : (isGarage ? "contact" : "apercu")
 
   function handleTabChange(value: unknown) {
     if (typeof value !== "string") return
@@ -147,6 +156,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         permis: draft.permis.trim() || undefined,
         siret: draft.siret.trim() || undefined,
         activite: draft.activite.trim() || undefined,
+        deal_value: draft.dealValue.trim() ? Number(draft.dealValue) : undefined,
       })
       setLead(updated)
       setDraft(garageDraftFrom(updated))
@@ -209,11 +219,29 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
         {lead && draft && (
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 md:h-full md:min-h-0">
-            <div className="flex items-center justify-between shrink-0">
+            {lead.duplicate_of && (
+              <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 shrink-0">
+                <CopyIcon size={14} className="shrink-0" />
+                Doublon possible de{" "}
+                <Link href={`/dashboard/leads/${lead.duplicate_of.id}`} className="font-medium underline hover:text-amber-900">
+                  {lead.duplicate_of.name}
+                </Link>
+              </div>
+            )}
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between shrink-0">
               <p className="text-sm text-muted-foreground">
                 Créé le {formatDateTime(lead.created_at)} · Mis à jour le {formatDateTime(lead.updated_at)}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="Valeur estimée €"
+                  value={draft.dealValue}
+                  onChange={(e) => setDraft((d) => d && { ...d, dealValue: e.target.value })}
+                  disabled={saving}
+                  className="w-40"
+                />
                 {canAssign && (
                   <Select
                     value={lead.assigned_to ? String(lead.assigned_to.id) : "unassigned"}
@@ -268,6 +296,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 <TabsTrigger value="taches">
                   <ListTodoIcon size={16} /><span className="hidden md:inline">Tâches</span>
                 </TabsTrigger>
+                {canSeeActivity && (
+                  <TabsTrigger value="activite">
+                    <HistoryIcon size={16} /><span className="hidden md:inline">Activité</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {isGarage ? (
@@ -293,6 +326,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               )}
               <LeadNotesTab leadId={lead.id} initialNotes={lead.sticky_notes} />
               <LeadTasksTab leadId={lead.id} initialTasks={lead.tasks} />
+              {canSeeActivity && <LeadActivityTab leadId={lead.id} />}
             </Tabs>
           </div>
         )}

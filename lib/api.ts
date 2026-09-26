@@ -98,6 +98,8 @@ export type LeadDocument = {
   created_at: string
 }
 
+export type LeadDuplicate = { id: number; name: string }
+
 export type Lead = {
   id: number
   type: LeadType
@@ -111,6 +113,13 @@ export type Lead = {
   siret: string | null
   activite: string | null
   source: string | null
+  // Estimated/actual premium — optional, powers the dashboard's pipeline
+  // and converted-value KPIs (see /api/leads/stats).
+  deal_value: number | null
+  // Set server-side at creation if another lead already shared this
+  // phone/email — a flag for a human to check, not something that ever
+  // blocked the submission (see the backend's _find_duplicate).
+  duplicate_of: LeadDuplicate | null
   assigned_to: LeadAssignee | null
   sticky_notes: LeadNote[]
   tasks: LeadTask[]
@@ -120,18 +129,60 @@ export type Lead = {
   updated_at: string
 }
 
-export type LeadUpdate = Partial<Pick<Lead, "status" | "name" | "phone" | "email" | "type" | "immat" | "naissance" | "permis" | "siret" | "activite">> &
+export type LeadUpdate = Partial<Pick<Lead, "status" | "name" | "phone" | "email" | "type" | "immat" | "naissance" | "permis" | "siret" | "activite" | "deal_value">> &
   // Reassign (only takes effect for a superadmin/admin caller — the
   // backend 403s anyone else) or explicitly clear the assignee.
   Partial<{ assigned_to_id: number; unassign: boolean }>
 
 export type LeadCreate = Pick<Lead, "type" | "name" | "phone"> &
-  Partial<Pick<Lead, "email" | "immat" | "naissance" | "permis" | "siret" | "activite" | "source">> &
+  Partial<Pick<Lead, "email" | "immat" | "naissance" | "permis" | "siret" | "activite" | "source" | "deal_value">> &
   // Set by the CRM's own create-lead flow only — a consultant creating a
   // lead auto-assigns it to themselves (see app/dashboard/leads/page.tsx),
   // otherwise omitted so it's unassigned like every public submission.
   Partial<{ assigned_to_id: number }> &
   Partial<{ answers: Pick<LeadAnswer, "catalog_key" | "question" | "value">[] }>
+
+// One entry in a lead's unified activity timeline (see LeadActivity in the
+// backend's models.py) — replaces "compare timestamps across three
+// separate tables" with a single, actor-attributed, chronological log.
+export type LeadActivity = {
+  id: number
+  actor_name: string | null
+  action: string
+  field: string | null
+  old_value: string | null
+  new_value: string | null
+  description: string | null
+  created_at: string
+}
+
+export function getLeadActivity(leadId: number) {
+  return backendRequest<LeadActivity[]>(`/api/leads/${leadId}/activity`)
+}
+
+export type ConsultantStat = {
+  consultant_id: number
+  name: string
+  total_leads: number
+  converted_leads: number
+  conversion_rate: number
+  total_value: number
+  converted_value: number
+}
+
+export type LeadStats = {
+  total_leads: number
+  by_status: Record<LeadStatus, number>
+  conversion_rate: number
+  total_pipeline_value: number
+  converted_value: number
+  unread_contacts: number
+  by_consultant: ConsultantStat[]
+}
+
+export function getLeadStats() {
+  return backendRequest<LeadStats>("/api/leads/stats")
+}
 
 export type Contact = {
   id: number
@@ -162,6 +213,58 @@ export function listLeadContacts() {
 
 export function deleteLeadContact(id: number) {
   return backendRequest<void>(`/api/leads/contacts/${id}`, { method: "DELETE" })
+}
+
+// ── Public-site accounts (Espace Client / Espace Partenaire) ────────────────
+//
+// Read-only view onto the Account table the public site's own
+// connexion/inscription flow writes to — entirely separate from this CRM's
+// own User accounts (see the backend's app/routers/crm_accounts.py).
+
+export type AccountType = "client" | "partenaire"
+
+export type AdminAccount = {
+  id: number
+  name: string
+  email: string
+  type: AccountType
+  referral_code: string | null
+  active: boolean
+  oauth_provider: "google" | "apple" | "facebook" | null
+  leads_count: number
+  created_at: string
+}
+
+export type AdminAccountLead = {
+  id: number
+  type: LeadType
+  status: LeadStatus
+  created_at: string
+}
+
+export type AdminAccountDetail = AdminAccount & { leads: AdminAccountLead[] }
+
+export type AccountsPage = { accounts: AdminAccount[]; total: number }
+
+// Same server-side pagination pattern as listLeadsPage above.
+export async function listAccountsPage(params: {
+  page: number
+  pageSize: number
+  type?: AccountType
+  search?: string
+}): Promise<AccountsPage> {
+  const url = new URL(`${BACKEND_URL}/api/crm-accounts/`)
+  if (params.type) url.searchParams.set("type", params.type)
+  if (params.search) url.searchParams.set("search", params.search)
+  url.searchParams.set("skip", String((params.page - 1) * params.pageSize))
+  url.searchParams.set("limit", String(params.pageSize))
+  const { data, headers } = await backendRequestWithHeaders<AdminAccount[]>(url.pathname + url.search)
+  const total = Number(headers.get("X-Total-Count") ?? data.length)
+  return { accounts: data, total }
+}
+
+export function getAccount(id: number) {
+  return backendRequest<AdminAccountDetail>(`/api/crm-accounts/${id}`)
 }
 
 // The published, ordered questions for a questionnaire (e.g. "garage") —
@@ -205,7 +308,7 @@ export function fetchQuestionnaireQuestions(slug: string) {
 // here, since listing leads doesn't need them and including them would mean
 // lazy-loading three relationships per row. Fetch a single lead (getLead)
 // for the full Lead shape.
-export type LeadListItem = Pick<Lead, "id" | "type" | "status" | "name" | "phone" | "email" | "assigned_to" | "created_at">
+export type LeadListItem = Pick<Lead, "id" | "type" | "status" | "name" | "phone" | "email" | "deal_value" | "duplicate_of" | "assigned_to" | "created_at">
 
 export function listLeads(params?: { status?: LeadStatus; assignedToId?: number; limit?: number }) {
   const url = new URL(`${BACKEND_URL}/api/leads/`)
@@ -249,10 +352,107 @@ export function listAssignableUsers() {
   return backendRequest<LeadAssignee[]>("/api/leads/assignable-users")
 }
 
+// ── Consultants (booking pool + their own calendar) ─────────────────────────
+//
+// A "consultant" is just a User with role === "consultant" — there's no
+// separate consultant profile/table anymore (see app/main.py's one-time
+// migration that folded the old standalone Consultant table into Users).
+// listConsultants() below returns the same shape as listUsers(), filtered
+// to that role.
+
+export type ConsultantUnavailability = {
+  id: number
+  consultant_id: number
+  date: string // YYYY-MM-DD
+  time: string | null // HH:MM, or null for the whole day blocked
+  created_at: string
+}
+
+// A real, already-confirmed appointment — read-only from the calendar
+// editor's point of view (there's no "unbook" action, unlike a manual
+// block), shown so a consultant/manager sees their actual schedule.
+export type ConsultantBooking = {
+  id: number
+  date: string
+  time: string
+  // null once the lead itself has been deleted (the FK sets it null rather
+  // than deleting the booking) — lead_name then reads null too.
+  lead_id: number | null
+  lead_name: string | null
+  created_at: string
+}
+
+// Requires the "consultants" permission's "view" action — see the
+// Permissions page. Returns every User with role === "consultant".
+export function listConsultants() {
+  return backendRequest<ManagedUser[]>("/api/consultants")
+}
+
+// `month` is "YYYY-MM" — the calendar UI only ever needs one month at a time.
+export function listConsultantUnavailabilities(consultantId: number, month: string) {
+  return backendRequest<ConsultantUnavailability[]>(`/api/consultants/${consultantId}/unavailabilities?month=${month}`)
+}
+
+export function listConsultantBookings(consultantId: number, month: string) {
+  return backendRequest<ConsultantBooking[]>(`/api/consultants/${consultantId}/bookings?month=${month}`)
+}
+
+export type ConsultantBookingWithConsultant = ConsultantBooking & {
+  consultant: { id: number; name: string }
+}
+
+// Backs the "Rendez-vous" sidebar section — whoever has the "consultants"
+// view permission (admin/superadmin by default) gets every consultant's
+// bookings for that month, optionally narrowed via consultantId; a plain
+// consultant only ever gets their own regardless of that filter (enforced
+// server-side).
+export function listAllBookings(month: string, consultantId?: number) {
+  const url = new URL(`${BACKEND_URL}/api/consultants/bookings`)
+  url.searchParams.set("month", month)
+  if (consultantId != null) url.searchParams.set("consultant_id", String(consultantId))
+  return backendRequest<ConsultantBookingWithConsultant[]>(url.pathname + url.search)
+}
+
+// Moves a confirmed appointment to a different consultant — gated by the
+// "consultants" permission's "edit" action on the backend (see the
+// Permissions page), not self-service: it also affects a second
+// consultant's schedule, so it isn't something the booked consultant can
+// do to themselves by just owning the calendar.
+export function reallocateBooking(consultantId: number, bookingId: number, newConsultantId: number) {
+  return backendRequest<ConsultantBooking>(`/api/consultants/${consultantId}/bookings/${bookingId}/reallocate`, {
+    method: "PATCH",
+    body: JSON.stringify({ new_consultant_id: newConsultantId }),
+  })
+}
+
+// `time: null` blocks the whole day.
+export function blockConsultantTimeframe(consultantId: number, payload: { date: string; time?: string | null }) {
+  return backendRequest<ConsultantUnavailability>(`/api/consultants/${consultantId}/unavailabilities`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function unblockConsultantTimeframe(consultantId: number, unavailabilityId: number) {
+  return backendRequest<void>(`/api/consultants/${consultantId}/unavailabilities/${unavailabilityId}`, {
+    method: "DELETE",
+  })
+}
+
 export function createLead(payload: LeadCreate) {
   return backendRequest<Lead>("/api/leads/", {
     method: "POST",
     body: JSON.stringify(payload),
+  })
+}
+
+// Superadmin-only (see the backend route) — creates `count` fake
+// "Assurance Garage" leads with realistic catalog-shaped answers, for
+// exercising the CRM's own views without hand-filling the public form or
+// this "Nouveau lead" dialog repeatedly.
+export function generateTestData(count: number) {
+  return backendRequest<{ created: number; ids: number[] }>(`/api/leads/generate-test-data?count=${count}`, {
+    method: "POST",
   })
 }
 
@@ -323,6 +523,24 @@ export function updateLeadTask(taskId: number, payload: Partial<Pick<LeadTask, "
 
 export function deleteLeadTask(taskId: number) {
   return backendRequest<void>(`/api/leads/tasks/${taskId}`, { method: "DELETE" })
+}
+
+// A task plus just enough about its lead to show in a cross-lead list —
+// backs the "Tâches" sidebar section (app/dashboard/tasks/page.tsx).
+export type LeadTaskWithLead = LeadTask & {
+  lead: { id: number; name: string }
+  assigned_to: LeadAssignee | null
+}
+
+// A consultant only ever gets tasks on their own leads (enforced
+// server-side); anyone else gets every consultant's, optionally narrowed
+// to one via assignedToId — that's how an admin sees "all the
+// consultants' tasks" instead of just their own.
+export function listAllTasks(params?: { completed?: boolean; assignedToId?: number }) {
+  const url = new URL(`${BACKEND_URL}/api/leads/tasks`)
+  if (params?.completed != null) url.searchParams.set("completed", String(params.completed))
+  if (params?.assignedToId != null) url.searchParams.set("assigned_to_id", String(params.assignedToId))
+  return backendRequest<LeadTaskWithLead[]>(url.pathname + url.search)
 }
 
 export function listContacts() {
@@ -399,6 +617,14 @@ export function updateUser(id: number, payload: UserUpdatePayload) {
 
 export function deleteUser(id: number) {
   return backendRequest<void>(`/api/users/${id}`, { method: "DELETE" })
+}
+
+// "Force logout" — revokes every refresh token this user currently holds
+// (every device/browser they're logged in on), without touching their
+// password or account status. Their access token already in flight stays
+// valid for at most ~30 minutes (see the backend's ACCESS_TOKEN_TTL).
+export function revokeUserSessions(id: number) {
+  return backendRequest<void>(`/api/users/${id}/revoke-sessions`, { method: "POST" })
 }
 
 export type RolePermissionRow = {

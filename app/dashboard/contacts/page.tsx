@@ -30,6 +30,7 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Loader2Icon, Trash2Icon, UsersRoundIcon } from "lucide-react"
 import { listLeadContacts, deleteLeadContact, type LeadContact } from "@/lib/api"
 
@@ -230,8 +231,13 @@ export default function ContactsPage() {
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>{c.phone}</TableCell>
                     <TableCell>{c.email ?? "—"}</TableCell>
-                    <TableCell className="max-w-[220px] truncate" title={c.address ?? ""}>
-                      {c.address ?? "—"}
+                    <TableCell className="max-w-[220px]">
+                      {c.address ? (
+                        <Tooltip>
+                          <TooltipTrigger render={<span className="block truncate" />}>{c.address}</TooltipTrigger>
+                          <TooltipContent>{c.address}</TooltipContent>
+                        </Tooltip>
+                      ) : "—"}
                     </TableCell>
                     <TableCell>{formatDate(c.created_at)}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()} className="flex items-center gap-2">

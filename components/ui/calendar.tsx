@@ -23,16 +23,44 @@ function isSameDay(a?: Date, b?: Date) {
   return !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
+function toISODate(date: Date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
 export function Calendar({
   selected,
   onSelect,
   className,
+  markedDates,
+  secondaryMarkedDates,
+  month: monthProp,
+  onMonthChange,
 }: {
   selected?: Date
   onSelect?: (date: Date) => void
   className?: string
+  // ISO ("YYYY-MM-DD") dates to show a small dot under — e.g. days a
+  // consultant has blocked off, so that's visible at a glance instead of
+  // having to click through every day to check.
+  markedDates?: Set<string>
+  // A second, differently-colored dot — e.g. days that already have a
+  // real booking, distinct from a deliberate block. A date in both sets
+  // gets both dots.
+  secondaryMarkedDates?: Set<string>
+  // Controlled month navigation, for a caller (e.g. a calendar editor) that
+  // needs to know which month is showing so it can fetch that month's data.
+  month?: Date
+  onMonthChange?: (month: Date) => void
 }) {
-  const [month, setMonth] = React.useState(() => selected ?? new Date())
+  const [internalMonth, setInternalMonth] = React.useState(() => selected ?? new Date())
+  const month = monthProp ?? internalMonth
+  function setMonth(next: Date) {
+    setInternalMonth(next)
+    onMonthChange?.(next)
+  }
   const year = month.getFullYear()
   const m = month.getMonth()
   const today = new Date()
@@ -75,18 +103,31 @@ export function Calendar({
           const date = new Date(year, m, day)
           const selectedDay = isSameDay(date, selected)
           const isToday = isSameDay(date, today)
+          const iso = toISODate(date)
+          const isMarked = markedDates?.has(iso)
+          const isSecondaryMarked = secondaryMarkedDates?.has(iso)
           return (
             <button
               key={day}
               type="button"
               onClick={() => onSelect?.(date)}
               className={cn(
-                "size-8 rounded-md text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
+                "relative size-8 rounded-md text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
                 selectedDay && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
                 !selectedDay && isToday && "font-semibold text-primary"
               )}
             >
               {day}
+              {(isMarked || isSecondaryMarked) && (
+                <span className="absolute bottom-1 left-1/2 flex -translate-x-1/2 gap-0.5">
+                  {isMarked && (
+                    <span className={cn("size-1.5 rounded-full bg-destructive", selectedDay && "bg-primary-foreground")} />
+                  )}
+                  {isSecondaryMarked && (
+                    <span className={cn("size-1.5 rounded-full bg-blue-500", selectedDay && "bg-primary-foreground")} />
+                  )}
+                </span>
+              )}
             </button>
           )
         })}

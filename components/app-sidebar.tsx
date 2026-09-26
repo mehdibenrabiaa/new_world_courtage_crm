@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
+import { NotificationBell } from "@/components/notification-bell"
 import { TeamSwitcher } from "@/components/team-switcher"
 import { useAuth } from "@/components/auth-provider"
 import { can, type PermissionResource } from "@/lib/auth"
@@ -16,7 +17,8 @@ import {
 } from "@/components/ui/sidebar"
 import {
   ReceiptTextIcon, UsersIcon, LayoutDashboardIcon, BookOpenIcon, UserIcon,
-  ImageIcon, UserCogIcon, ShieldCheckIcon,
+  ImageIcon, UserCogIcon, ShieldCheckIcon, CalendarIcon, CalendarCogIcon, ListTodoIcon, CalendarClockIcon,
+  IdCardIcon,
 } from "lucide-react"
 
 const data = {
@@ -33,6 +35,21 @@ const data = {
       url: "/dashboard",
       icon: <LayoutDashboardIcon />,
     },
+    {
+      title: "Mon calendrier",
+      url: "/dashboard/my-calendar",
+      icon: <CalendarIcon />,
+    },
+    {
+      // Ungated, like "Mon calendrier" — self-service (seeing your own
+      // bookings) is always allowed regardless of the "consultants"
+      // permission matrix (see the backend's _has_permission). The page
+      // itself asks the backend for either everyone's bookings or just
+      // the caller's, depending on that same permission.
+      title: "Rendez-vous",
+      url: "/dashboard/bookings",
+      icon: <CalendarClockIcon />,
+    },
   ],
   navCrm: [
     {
@@ -42,9 +59,30 @@ const data = {
       resource: "leads" as PermissionResource,
     },
     {
+      // Gated on the same "leads" permission as the Leads page itself —
+      // it's a cross-lead view of the exact same LeadTask rows, not a
+      // separate resource. A consultant only ever sees their own leads'
+      // tasks here (enforced server-side); anyone else sees every
+      // consultant's, filterable by person.
+      title: "Tâches",
+      url: "/dashboard/tasks",
+      icon: <ListTodoIcon />,
+      resource: "leads" as PermissionResource,
+    },
+    {
       title: "Contacts",
       url: "/dashboard/contacts",
       icon: <UsersIcon />,
+      resource: "contacts" as PermissionResource,
+    },
+    {
+      // The public site's Espace Client / Espace Partenaire accounts — a
+      // different table from Contacts (which is deals from leads), gated on
+      // the same permission since both are "someone who reached us through
+      // the public site" lookups.
+      title: "Comptes",
+      url: "/dashboard/comptes",
+      icon: <IdCardIcon />,
       resource: "contacts" as PermissionResource,
     },
   ],
@@ -68,6 +106,17 @@ const data = {
       resource: "media" as PermissionResource,
     },
   ],
+  // Consultants is admin-*and*-superadmin (matches the backend's
+  // CAN_MANAGE_ANY), unlike navAdmin below which is superadmin-only —
+  // kept as its own section so loosening it never risks quietly widening
+  // who sees Utilisateurs/Permissions too.
+  navConsultants: [
+    {
+      title: "Consultants",
+      url: "/dashboard/consultants",
+      icon: <CalendarCogIcon />,
+    },
+  ],
   navAdmin: [
     {
       title: "Utilisateurs",
@@ -85,6 +134,7 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth()
   const isSuperadmin = user?.role === "superadmin"
+  const canManageConsultants = isSuperadmin || user?.role === "admin"
 
   // Sections a role can't see anything in (no "view" on any of its items)
   // are hidden rather than shown empty/greyed — backend still enforces this
@@ -95,12 +145,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+        <div className="flex items-center gap-1">
+          <div className="min-w-0 flex-1">
+            <TeamSwitcher teams={data.teams} />
+          </div>
+          {/* Hidden when the sidebar collapses to icon-only — no room for
+              it next to the team switcher at that width, and it'd fight
+              the switcher's own icon+tooltip layout at that size. */}
+          <div className="shrink-0 group-data-[collapsible=icon]:hidden">
+            <NotificationBell />
+          </div>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <NavMain label="Général" items={data.navGeneral} />
         {navCrm.length > 0 && <NavMain label="CRM" items={navCrm} />}
         {navContent.length > 0 && <NavMain label="Contenu" items={navContent} />}
+        {canManageConsultants && <NavMain label="Consultants" items={data.navConsultants} />}
         {isSuperadmin && <NavMain label="Administration" items={data.navAdmin} />}
       </SidebarContent>
       <SidebarFooter>

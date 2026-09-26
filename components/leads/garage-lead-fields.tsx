@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
+import { Badge } from "@/components/ui/badge"
 import { Field, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import { TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -48,6 +49,7 @@ export type GarageDraft = {
   permis: string
   siret: string
   activite: string
+  dealValue: string
 }
 
 export function garageDraftFrom(l: Lead): GarageDraft {
@@ -62,6 +64,7 @@ export function garageDraftFrom(l: Lead): GarageDraft {
     permis: l.permis ?? "",
     siret: l.siret ?? "",
     activite: l.activite ?? "",
+    dealValue: l.deal_value != null ? String(l.deal_value) : "",
   }
 }
 
@@ -123,6 +126,18 @@ export function GarageLeadFields({
     }
   }
 
+  // lead.activite is comma-joined RAW option values (not labels — see
+  // garagiste/devis's handleSubmit, which does `String(activite)` on the
+  // checkbox's raw array instead of mapping through labels like every other
+  // answer), so look each one up against activite_principale's own options
+  // to show the real label; anything unmatched just shows as-is.
+  const activiteOptions = questions.find((q) => q.key === "activite_principale")?.options ?? []
+  const activiteLabels = draft.activite
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => activiteOptions.find((o) => o.value === v)?.label ?? v)
+
   return (
     <Fragment>
       {/* representant_legal/mobile/email_principal are real "Coordonnées"
@@ -159,7 +174,13 @@ export function GarageLeadFields({
           </Field>
           <Field>
             <FieldLabel className="font-normal text-muted-foreground">Activité</FieldLabel>
-            <FieldTitle>{draft.activite || "—"}</FieldTitle>
+            {activiteLabels.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mt-0.5">
+                {activiteLabels.map((label, i) => <Badge key={i} variant="secondary">{label}</Badge>)}
+              </div>
+            ) : (
+              <FieldTitle>—</FieldTitle>
+            )}
           </Field>
         </div>
       </TabsContent>

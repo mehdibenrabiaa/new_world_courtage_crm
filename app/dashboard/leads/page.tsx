@@ -50,9 +50,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
 import { Skeleton } from "@/components/ui/skeleton"
-import { MoreHorizontalIcon, PencilIcon, Trash2Icon, Loader2Icon, PlusIcon } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { MoreHorizontalIcon, PencilIcon, Trash2Icon, Loader2Icon, PlusIcon, SparklesIcon, CopyIcon } from "lucide-react"
 import {
-  listLeadsPage, deleteLead, createLead, listAssignableUsers, updateLead,
+  listLeadsPage, deleteLead, createLead, generateTestData, listAssignableUsers, updateLead,
   type LeadListItem, type LeadStatus, type LeadType, type LeadCreate, type LeadAssignee,
 } from "@/lib/api"
 import { CATEGORIES } from "@/lib/categories"
@@ -80,6 +81,10 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
 }
 
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value)
+}
+
 // base-ui's Select.Value doesn't auto-resolve a SelectItem's label from its
 // children (unlike Radix) — it needs an explicit value->label mapper, hence
 // this everywhere a Select's value isn't already its own display string.
@@ -101,11 +106,12 @@ type NewLead = {
   permis: string
   siret: string
   activite: string
+  dealValue: string
 }
 
 const EMPTY_NEW_LEAD: NewLead = {
   type: CATEGORIES[0], name: "", phone: "", email: "",
-  immat: "", naissance: "", permis: "", siret: "", activite: "",
+  immat: "", naissance: "", permis: "", siret: "", activite: "", dealValue: "",
 }
 
 export default function LeadsPage() {
@@ -114,11 +120,16 @@ export default function LeadsPage() {
   const searchParams = useSearchParams()
   const { user: me } = useAuth()
   const canAssign = me?.role === "superadmin" || me?.role === "admin"
+  // The backend route itself is superadmin-only (same level as user
+  // management, not a delegable "leads" permission) — hidden for anyone
+  // else rather than shown disabled/erroring on click.
+  const canGenerateTestData = me?.role === "superadmin"
   const [leads, setLeads] = useState<LeadListItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<LeadListItem | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [generatingTestData, setGeneratingTestData] = useState(false)
   const toastManager = useToastManager()
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -289,6 +300,7 @@ export default function LeadsPage() {
         permis: newLead.permis.trim() || undefined,
         siret: newLead.siret.trim() || undefined,
         activite: newLead.activite.trim() || undefined,
+        deal_value: newLead.dealValue.trim() ? Number(newLead.dealValue) : undefined,
         assigned_to_id: assignedToId,
       }
       const created = await createLead(payload)
@@ -303,6 +315,21 @@ export default function LeadsPage() {
       toastManager.add({ title: "Impossible de créer le lead", type: "error" })
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleGenerateTestData() {
+    setGeneratingTestData(true)
+    try {
+      const { created } = await generateTestData(5)
+      toastManager.add({ title: `${created} lead${created > 1 ? "s" : ""} de test créé${created > 1 ? "s" : ""}`, type: "success" })
+      if (page === 1) refetch()
+      else setPage(1)
+    } catch (err) {
+      console.error(err)
+      toastManager.add({ title: "Impossible de générer les données de test", type: "error" })
+    } finally {
+      setGeneratingTestData(false)
     }
   }
 
@@ -368,7 +395,18 @@ export default function LeadsPage() {
               </SelectContent>
             </Select>
           )}
-          <Button className="ml-auto" onClick={openCreate}>
+          {canGenerateTestData && (
+            <Button
+              variant="outline"
+              className="ml-auto"
+              onClick={handleGenerateTestData}
+              disabled={generatingTestData}
+            >
+              {generatingTestData ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+              Générer des données de test
+            </Button>
+          )}
+          <Button className={canGenerateTestData ? "" : "ml-auto"} onClick={openCreate}>
             <PlusIcon />
             Nouveau lead
           </Button>
@@ -381,6 +419,7 @@ export default function LeadsPage() {
               <TableHead className="sticky top-0 z-10 bg-background">Contact</TableHead>
               <TableHead className="sticky top-0 z-10 bg-background">Catégorie</TableHead>
               <TableHead className="sticky top-0 z-10 bg-background">Statut</TableHead>
+              <TableHead className="sticky top-0 z-10 bg-background">Valeur</TableHead>
               {canAssign && <TableHead className="sticky top-0 z-10 bg-background">Assigné à</TableHead>}
               <TableHead className="sticky top-0 z-10 bg-background">Créé le</TableHead>
               <TableHead className="sticky top-0 z-10 w-10 bg-background" />
@@ -400,6 +439,7 @@ export default function LeadsPage() {
                   </TableCell>
                   <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                   {canAssign && <TableCell><Skeleton className="h-8 w-40" /></TableCell>}
                   <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
@@ -407,13 +447,25 @@ export default function LeadsPage() {
               ))
             ) : leads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canAssign ? 7 : 6} className="text-center text-muted-foreground py-10">
+                <TableCell colSpan={canAssign ? 8 : 7} className="text-center text-muted-foreground py-10">
                   Aucun lead trouvé.
                 </TableCell>
               </TableRow>
             ) : leads.map((l) => (
               <TableRow key={l.id} className="cursor-pointer" onClick={() => openLead(l)}>
-                <TableCell className="font-medium">{l.name}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-1.5">
+                    {l.duplicate_of && (
+                      <Tooltip>
+                        <TooltipTrigger render={<span className="inline-flex" />}>
+                          <CopyIcon size={12} className="text-amber-600 shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>Doublon possible de {l.duplicate_of.name}</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {l.name}
+                  </div>
+                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   <div>{l.phone}</div>
                   {l.email && <div>{l.email}</div>}
@@ -423,6 +475,9 @@ export default function LeadsPage() {
                   <Badge variant="secondary" className={STATUS_STYLES[l.status]}>
                     {STATUS_LABELS[l.status]}
                   </Badge>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {l.deal_value != null ? formatCurrency(l.deal_value) : "—"}
                 </TableCell>
                 {canAssign && (
                   <TableCell className="text-sm" onClick={(e) => e.stopPropagation()}>
@@ -582,14 +637,27 @@ export default function LeadsPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="nl-email">Email (optionnel)</Label>
-              <Input
-                id="nl-email"
-                value={newLead.email}
-                onChange={(e) => setNewLead((p) => ({ ...p, email: e.target.value }))}
-                placeholder="client@email.com"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="nl-email">Email (optionnel)</Label>
+                <Input
+                  id="nl-email"
+                  value={newLead.email}
+                  onChange={(e) => setNewLead((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="client@email.com"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="nl-value">Valeur estimée € (optionnel)</Label>
+                <Input
+                  id="nl-value"
+                  type="number"
+                  min="0"
+                  value={newLead.dealValue}
+                  onChange={(e) => setNewLead((p) => ({ ...p, dealValue: e.target.value }))}
+                  placeholder="1200"
+                />
+              </div>
             </div>
 
             {/* Optional, freeform — relevant fields vary by category so both

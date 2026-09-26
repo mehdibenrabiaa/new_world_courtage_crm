@@ -330,7 +330,7 @@ function AnswerFieldCard({ a }: { a: DisplayAnswer }) {
             return (
               <span key={i} className="flex items-center gap-2.5">
                 <PlainCheckboxSquare checked={isSelected} />
-                <span className="text-base text-[rgba(0,0,0,0.88)]">{opt.label}</span>
+                <span className="text-sm md:text-base text-[rgba(0,0,0,0.88)]">{opt.label}</span>
               </span>
             )
           })}
@@ -346,7 +346,7 @@ function AnswerFieldCard({ a }: { a: DisplayAnswer }) {
             return (
               <span key={i} className="flex items-center gap-2.5">
                 <PublicRadioGroupItem checked={isSelected} />
-                <span className="text-base font-normal text-[rgba(0,0,0,0.88)]">{opt.label}</span>
+                <span className="text-sm md:text-base font-normal text-[rgba(0,0,0,0.88)]">{opt.label}</span>
               </span>
             )
           })}
@@ -355,12 +355,12 @@ function AnswerFieldCard({ a }: { a: DisplayAnswer }) {
     }
   } else {
     const displayValue = a.isDate ? formatDateValue(a.value) : a.unit ? formatUnitValue(a.value, a.unit) : a.value
-    body = <Input value={displayValue} disabled readOnly className="bg-white h-[50px]" />
+    body = <Input value={displayValue} disabled readOnly className="bg-white h-[50px] text-sm md:text-[16px]" />
   }
 
   return (
     <div className={`flex flex-col gap-2 ${wide ? "md:col-span-2" : ""}`}>
-      <p className="text-[16px] text-[rgba(0,0,0,0.88)] font-semibold">{a.question}</p>
+      <p className="text-sm md:text-[16px] text-[rgba(0,0,0,0.88)] font-semibold">{a.question}</p>
       {body}
     </div>
   )
@@ -393,7 +393,7 @@ export function ReponsesStepViewer({
       {sections.length > 1 && (
         <>
           <div
-            className="hidden md:grid gap-0.5 sticky top-0 z-10 bg-white pt-1 pb-1"
+            className="hidden lg:grid gap-0.5 sticky top-0 z-10 bg-white pt-1 pb-1"
             style={{ gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))` }}
           >
             {sections.map(({ section }, i) => {
@@ -404,18 +404,22 @@ export function ReponsesStepViewer({
                   key={section}
                   type="button"
                   onClick={() => setStepIdx(i)}
-                  className={`flex items-center justify-center gap-1 px-1 lg:px-3 py-3.5 text-[11px] font-semibold uppercase tracking-normal transition-colors cursor-pointer ${
+                  className={`flex min-w-0 items-center justify-center gap-1 px-1 lg:px-3 py-3.5 text-[11px] font-semibold uppercase tracking-normal transition-colors cursor-pointer ${
                     isActive ? "bg-[var(--color-brand)] text-white" : "bg-gray-200 text-gray-500 hover:bg-gray-300"
                   }`}
                 >
                   <Icon size={16} className="shrink-0" />
-                  <span className="text-center leading-snug whitespace-nowrap">{section}</span>
+                  {/* truncate (not whitespace-nowrap alone) so a long
+                      section name ellipsizes inside its own narrow column
+                      on a mid-width screen with many sections, instead of
+                      visually overflowing into its neighbors. */}
+                  <span className="min-w-0 truncate text-center leading-snug">{section}</span>
                 </button>
               )
             })}
           </div>
 
-          <div className="md:hidden flex flex-col gap-2 sticky top-0 z-10 bg-white pt-1 pb-1">
+          <div className="lg:hidden flex flex-col gap-2 sticky top-0 z-10 bg-white pt-1 pb-1">
             <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))` }}>
               {sections.map(({ section }, i) => {
                 const Icon = SECTION_ICONS[section] || CircleIcon
@@ -459,14 +463,14 @@ export function ReponsesStepViewer({
                 <div key={product} className="flex flex-col gap-4">
                   <div className="flex items-center gap-3">
                     <span className="w-1.5 h-5 bg-[var(--color-brand)] shrink-0" />
-                    <span className="text-base font-bold text-[rgba(0,0,0,0.88)] whitespace-nowrap">{productLabels[product] ?? product}</span>
+                    <span className="text-sm md:text-base font-bold text-[rgba(0,0,0,0.88)] whitespace-nowrap">{productLabels[product] ?? product}</span>
                     <span className="flex-1 h-px bg-gray-200" />
                   </div>
                   <div className="flex flex-col gap-6 bg-gray-100 p-6">
                     {groupAnswersByEyebrow(answers).map((run, ri) => (
                       <div key={ri} className="flex flex-col gap-6">
                         {run.eyebrow && (
-                          <div className={`-mx-6 bg-[var(--color-brand)]/10 px-4 py-2.5 text-sm font-bold tracking-wide text-[var(--color-brand)] uppercase ${ri === 0 ? "-mt-6" : ""}`}>
+                          <div className={`-mx-6 bg-[var(--color-brand)]/10 px-4 py-2.5 text-xs md:text-sm font-bold tracking-wide text-[var(--color-brand)] uppercase ${ri === 0 ? "-mt-6" : ""}`}>
                             {run.eyebrow}
                           </div>
                         )}

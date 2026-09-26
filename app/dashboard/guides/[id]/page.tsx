@@ -38,7 +38,7 @@ import { Calendar } from "@/components/ui/calendar"
 import {
   GripVerticalIcon, Trash2Icon, PlusIcon,
   CheckIcon, ChevronLeftIcon, Loader2Icon, HelpCircleIcon, CalendarIcon,
-  CheckCircle2Icon, ChevronRightIcon,
+  CheckCircle2Icon, ChevronRightIcon, ImageOffIcon,
 } from "lucide-react"
 import { articleSerif } from "@/lib/fonts"
 import {
@@ -892,13 +892,16 @@ export default function GuideEditorPage() {
                     </TooltipProvider>
                   </div>
                   {guide.imageUrl && (
-                    <div className="w-full rounded-lg overflow-hidden border bg-muted aspect-[8/5]">
-                      <img
-                        src={guide.imageUrl}
-                        alt="Aperçu"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                    // Avatar/AvatarFallback (base-ui) already swaps to the
+                    // fallback on a load error, not just on a missing src —
+                    // de-circularized here via className overrides for a
+                    // rectangular card preview instead of its default round shape.
+                    <Avatar className="w-full h-auto rounded-lg overflow-hidden border bg-muted aspect-[8/5] after:rounded-lg">
+                      <AvatarImage src={guide.imageUrl} alt="Aperçu" className="rounded-none object-cover" />
+                      <AvatarFallback className="rounded-none">
+                        <ImageOffIcon size={28} strokeWidth={1.2} className="text-muted-foreground" />
+                      </AvatarFallback>
+                    </Avatar>
                   )}
                   <input
                     ref={fileInputRef}

@@ -9,8 +9,11 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { listLeads, listContacts, type LeadListItem, type Contact } from "@/lib/api"
-import { ReceiptTextIcon, CheckCircleIcon, UsersIcon, TrendingUpIcon } from "lucide-react"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table"
+import { listLeads, getLeadStats, type LeadListItem, type LeadStats } from "@/lib/api"
+import { ReceiptTextIcon, CheckCircleIcon, UsersIcon, TrendingUpIcon, WalletIcon, BadgeEuroIcon } from "lucide-react"
 
 type KPI = {
   label: string
@@ -18,6 +21,10 @@ type KPI = {
   sub: string
   icon: React.ReactNode
   color: string
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value)
 }
 
 function KpiCard({ label, value, sub, icon, color }: KPI) {
@@ -36,57 +43,64 @@ function KpiCard({ label, value, sub, icon, color }: KPI) {
 }
 
 export default function DashboardPage() {
-  const [leads, setLeads] = useState<LeadListItem[]>([])
-  const [contacts, setContacts] = useState<Contact[]>([])
+  const [recent, setRecent] = useState<LeadListItem[]>([])
+  const [stats, setStats] = useState<LeadStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([
-      listLeads().catch(() => [] as LeadListItem[]),
-      listContacts().catch(() => [] as Contact[]),
-    ]).then(([l, c]) => {
-      setLeads(l)
-      setContacts(c)
+      listLeads({ limit: 5 }).catch(() => [] as LeadListItem[]),
+      getLeadStats().catch(() => null),
+    ]).then(([l, s]) => {
+      setRecent(l)
+      setStats(s)
     }).finally(() => setLoading(false))
   }, [])
-
-  const total = leads.length
-  const converted = leads.filter((l) => l.status === "converted").length
-  const conversion = total > 0 ? Math.round((converted / total) * 100) : 0
-  const unread = contacts.filter((c) => !c.read).length
 
   const kpis: KPI[] = [
     {
       label: "Total leads",
-      value: loading ? "—" : total,
+      value: loading || !stats ? "—" : stats.total_leads,
       sub: "leads enregistrés",
       icon: <ReceiptTextIcon size={16} />,
       color: "bg-blue-100 text-blue-600",
     },
     {
       label: "Convertis",
-      value: loading ? "—" : converted,
+      value: loading || !stats ? "—" : stats.by_status.converted ?? 0,
       sub: "contrats conclus",
       icon: <CheckCircleIcon size={16} />,
       color: "bg-green-100 text-green-600",
     },
     {
       label: "Taux de conversion",
-      value: loading ? "—" : `${conversion}%`,
+      value: loading || !stats ? "—" : `${stats.conversion_rate}%`,
       sub: "devis → signé",
       icon: <TrendingUpIcon size={16} />,
       color: "bg-purple-100 text-purple-600",
     },
     {
       label: "Messages non lus",
-      value: loading ? "—" : unread,
+      value: loading || !stats ? "—" : stats.unread_contacts,
       sub: "contacts en attente",
       icon: <UsersIcon size={16} />,
       color: "bg-amber-100 text-amber-600",
     },
+    {
+      label: "Pipeline en cours",
+      value: loading || !stats ? "—" : formatCurrency(stats.total_pipeline_value),
+      sub: "valeur estimée, hors convertis/perdus",
+      icon: <WalletIcon size={16} />,
+      color: "bg-cyan-100 text-cyan-600",
+    },
+    {
+      label: "Valeur convertie",
+      value: loading || !stats ? "—" : formatCurrency(stats.converted_value),
+      sub: "contrats signés",
+      icon: <BadgeEuroIcon size={16} />,
+      color: "bg-emerald-100 text-emerald-600",
+    },
   ]
-
-  const recent = leads.slice(0, 5)
 
   return (
     <>
@@ -105,9 +119,42 @@ export default function DashboardPage() {
       </header>
 
       <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {kpis.map((kpi) => <KpiCard key={kpi.label} {...kpi} />)}
         </div>
+
+        {stats && stats.by_consultant.length > 0 && (
+          <div className="rounded-xl border bg-card p-5 flex flex-col gap-4">
+            <h2 className="text-sm font-semibold">Performance par personne assignée</h2>
+            <Table containerClassName="rounded-lg border">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nom</TableHead>
+                  <TableHead>Leads</TableHead>
+                  <TableHead>Convertis</TableHead>
+                  <TableHead>Taux</TableHead>
+                  <TableHead>Valeur totale</TableHead>
+                  <TableHead>Valeur convertie</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.by_consultant
+                  .slice()
+                  .sort((a, b) => b.total_leads - a.total_leads)
+                  .map((c) => (
+                    <TableRow key={c.consultant_id}>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell>{c.total_leads}</TableCell>
+                      <TableCell>{c.converted_leads}</TableCell>
+                      <TableCell>{c.conversion_rate}%</TableCell>
+                      <TableCell>{formatCurrency(c.total_value)}</TableCell>
+                      <TableCell>{formatCurrency(c.converted_value)}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         <div className="rounded-xl border bg-card p-5 flex flex-col gap-4">
           <h2 className="text-sm font-semibold">Derniers leads</h2>

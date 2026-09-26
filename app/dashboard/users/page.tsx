@@ -27,10 +27,11 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 import { useToastManager } from "@/components/ui/toast"
-import { PlusIcon, Loader2Icon, Trash2Icon } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { PlusIcon, Loader2Icon, Trash2Icon, LogOutIcon } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import type { UserRole } from "@/lib/auth"
-import { listUsers, createUser, updateUser, deleteUser, type ManagedUser } from "@/lib/api"
+import { listUsers, createUser, updateUser, deleteUser, revokeUserSessions, type ManagedUser } from "@/lib/api"
 
 const ROLE_LABELS: Record<UserRole, string> = {
   superadmin: "Super-administrateur",
@@ -60,6 +61,7 @@ export default function UsersPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [revokingId, setRevokingId] = useState<number | null>(null)
 
   useEffect(() => {
     if (me && me.role !== "superadmin") router.replace("/dashboard")
@@ -76,11 +78,16 @@ export default function UsersPage() {
     const savedById = new Map(savedUsers.map((u) => [u.id, u]))
     return users.filter((u) => {
       const saved = savedById.get(u.id)
-      return saved && (saved.role !== u.role || saved.active !== u.active)
+      return saved && (saved.role !== u.role || saved.active !== u.active || saved.name !== u.name)
     }).map((u) => u.id)
   }, [users, savedUsers])
 
-  function setLocal(id: number, patch: Partial<Pick<ManagedUser, "role" | "active">>) {
+  // A blank name would otherwise save silently — block it here rather than
+  // adding server-side validation for a field the backend never rejected
+  // before there was a UI that could send an empty one.
+  const hasBlankDirtyName = users.some((u) => dirtyIds.includes(u.id) && !u.name.trim())
+
+  function setLocal(id: number, patch: Partial<Pick<ManagedUser, "role" | "active" | "name">>) {
     setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)))
   }
 
@@ -96,9 +103,10 @@ export default function UsersPage() {
       const results = await Promise.all(
         toSave.map((u) => {
           const saved = savedById.get(u.id)!
-          const patch: { role?: UserRole; active?: boolean } = {}
+          const patch: { role?: UserRole; active?: boolean; name?: string } = {}
           if (saved.role !== u.role) patch.role = u.role
           if (saved.active !== u.active) patch.active = u.active
+          if (saved.name !== u.name) patch.name = u.name.trim()
           return updateUser(u.id, patch)
         })
       )
@@ -144,6 +152,22 @@ export default function UsersPage() {
       setFormError(err instanceof Error ? err.message : "Une erreur est survenue.")
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleRevokeSessions(user: ManagedUser) {
+    setRevokingId(user.id)
+    try {
+      await revokeUserSessions(user.id)
+      toastManager.add({ title: `${user.name} a été déconnecté(e) de toutes ses sessions.`, type: "success" })
+    } catch (err) {
+      toastManager.add({
+        title: "Impossible de déconnecter cet utilisateur",
+        description: err instanceof Error ? err.message : "Une erreur est survenue.",
+        type: "error",
+      })
+    } finally {
+      setRevokingId(null)
     }
   }
 
@@ -194,13 +218,15 @@ export default function UsersPage() {
           <div className="flex items-center gap-2 shrink-0">
             {dirtyIds.length > 0 && (
               <>
-                <span className="text-xs text-muted-foreground">
-                  {dirtyIds.length} modification{dirtyIds.length > 1 ? "s" : ""} non enregistrée{dirtyIds.length > 1 ? "s" : ""}
+                <span className={hasBlankDirtyName ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+                  {hasBlankDirtyName
+                    ? "Le nom ne peut pas être vide."
+                    : `${dirtyIds.length} modification${dirtyIds.length > 1 ? "s" : ""} non enregistrée${dirtyIds.length > 1 ? "s" : ""}`}
                 </span>
                 <Button variant="outline" size="sm" onClick={discard} disabled={saving}>
                   Annuler
                 </Button>
-                <Button size="sm" onClick={save} disabled={saving}>
+                <Button size="sm" onClick={save} disabled={saving || hasBlankDirtyName}>
                   {saving && <Loader2Icon size={14} className="animate-spin" />}
                   Enregistrer
                 </Button>
@@ -237,7 +263,16 @@ export default function UsersPage() {
                 return (
                   <TableRow key={u.id} className={isDirty ? "bg-amber-50" : undefined}>
                     <TableCell className="font-medium">
-                      {u.name} {u.id === me?.id && <Badge variant="secondary" className="ml-1.5">vous</Badge>}
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          value={u.name}
+                          disabled={saving}
+                          onChange={(e) => setLocal(u.id, { name: e.target.value })}
+                          className="h-8 w-40"
+                          aria-label="Nom"
+                        />
+                        {u.id === me?.id && <Badge variant="secondary">vous</Badge>}
+                      </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{u.username}</TableCell>
                     <TableCell className="text-muted-foreground">{u.email}</TableCell>
@@ -274,15 +309,39 @@ export default function UsersPage() {
                       {new Date(u.created_at).toLocaleDateString("fr-FR")}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        disabled={u.id === me?.id}
-                        onClick={() => setDeleteTarget(u)}
-                      >
-                        <Trash2Icon size={14} />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-muted-foreground aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
+                                // aria-disabled, not the native `disabled` attribute
+                                // — a truly disabled button doesn't fire the
+                                // pointer/focus events the tooltip needs to open.
+                                aria-disabled={u.id === me?.id || revokingId === u.id}
+                                onClick={() => {
+                                  if (u.id === me?.id || revokingId === u.id) return
+                                  handleRevokeSessions(u)
+                                }}
+                              />
+                            }
+                          >
+                            {revokingId === u.id ? <Loader2Icon size={14} className="animate-spin" /> : <LogOutIcon size={14} />}
+                          </TooltipTrigger>
+                          <TooltipContent>Déconnecter de toutes les sessions</TooltipContent>
+                        </Tooltip>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          disabled={u.id === me?.id}
+                          onClick={() => setDeleteTarget(u)}
+                        >
+                          <Trash2Icon size={14} />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
