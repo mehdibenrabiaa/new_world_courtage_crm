@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Google_Sans_Flex } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Same typeface as the public site (new_world_courtage/lib/fonts.js); the
+// slant axis gives emphasised words their designed italic.
+const siteSans = Google_Sans_Flex({
+  variable: "--font-site-sans",
   subsets: ["latin"],
+  weight: "variable",
+  axes: ["slnt"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -27,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${siteSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>

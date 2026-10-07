@@ -1,11 +1,5 @@
-import { Playfair_Display } from "next/font/google"
-
-// Matches the public site's serif display face (new_world_courtage/lib/fonts.js),
-// used only inside the guide editor's live-preview so the title/intro editing
-// experience matches how they'll actually render.
-export const articleSerif = Playfair_Display({
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
-  style: ["normal"],
-  display: "swap",
-})
+// The public site's article titles use its sans typeface (Google Sans Flex,
+// loaded globally in app/layout.tsx) with the `.heading-font` style from
+// globals.css: medium weight, tight tracking, slanted <em>. Used inside the
+// guide editor's live preview so titles look the way they'll render.
+export const articleHeading = { className: "heading-font" }

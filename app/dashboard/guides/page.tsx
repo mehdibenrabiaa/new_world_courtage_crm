@@ -33,7 +33,7 @@ import {
   getGuides, createGuide, deleteGuide, saveGuide,
   type Guide, type Status,
 } from "@/lib/guides-store"
-import { CATEGORIES } from "@/lib/categories"
+import { CATEGORIES, categoryOptions } from "@/lib/categories"
 
 const STATUS_STYLES: Record<Status, string> = {
   "Brouillon": "bg-gray-100 text-gray-600",
@@ -299,7 +299,7 @@ export default function GuidesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {categoryOptions(draft.category).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

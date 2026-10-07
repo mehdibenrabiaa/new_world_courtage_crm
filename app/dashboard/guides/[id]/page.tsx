@@ -40,7 +40,7 @@ import {
   CheckIcon, ChevronLeftIcon, Loader2Icon, HelpCircleIcon, CalendarIcon,
   CheckCircle2Icon, ChevronRightIcon, ImageOffIcon,
 } from "lucide-react"
-import { articleSerif } from "@/lib/fonts"
+import { articleHeading } from "@/lib/fonts"
 import {
   getGuide, saveGuide, uploadGuideImage, uid,
   type Guide, type Block, type SectionBlock,
@@ -50,7 +50,7 @@ import {
   type Status,
 } from "@/lib/guides-store"
 import { getAuthors, type Author } from "@/lib/authors-store"
-import { CATEGORIES } from "@/lib/categories"
+import { categoryOptions } from "@/lib/categories"
 
 const READING_TIME_OPTIONS = ["2 minutes", "3 minutes", "4 minutes", "5 minutes", "6 minutes", "8 minutes", "10 minutes"]
 
@@ -124,8 +124,8 @@ function SectionEditor({
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-1 self-end">
         {([
-          { value: "sans" as const, label: "Sans" },
-          { value: "serif" as const, label: "Serif" },
+          { value: "sans" as const, label: "Normal" },
+          { value: "serif" as const, label: "Titre" },
         ]).map((opt) => (
           <button
             key={opt.value}
@@ -148,7 +148,7 @@ function SectionEditor({
         placeholder="Titre de la section…"
         className={cn(
           "text-[17px] sm:text-xl font-bold text-[var(--color-text)]",
-          block.titleFont === "serif" && articleSerif.className
+          block.titleFont === "serif" && articleHeading.className
         )}
       />
       <AutoGrowTextarea
@@ -339,7 +339,7 @@ function TableEditor({
                     <button
                       type="button"
                       onClick={() => deleteColumn(i)}
-                      className="absolute -top-1.5 right-0.5 rounded-full bg-black/25 p-0.5 text-white opacity-0 transition-opacity group-hover/col:opacity-100"
+                      className="absolute -top-1.5 right-0.5 bg-black/25 p-0.5 text-white opacity-0 transition-opacity group-hover/col:opacity-100"
                       aria-label="Supprimer la colonne"
                     >
                       <Trash2Icon size={10} />
@@ -471,7 +471,7 @@ function AccentCardEditor({
               <button
                 type="button"
                 onClick={() => onItemDelete(item.id)}
-                className="absolute top-2 right-2 rounded-full bg-black/15 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/30 group-hover/card:opacity-100"
+                className="absolute top-2 right-2 bg-black/15 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/30 group-hover/card:opacity-100"
                 aria-label="Supprimer la carte"
               >
                 <Trash2Icon size={12} />
@@ -942,7 +942,7 @@ export default function GuideEditorPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {categoryOptions(guide.category).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
 
@@ -952,7 +952,7 @@ export default function GuideEditorPage() {
                 placeholder="Titre du guide…"
                 className={cn(
                   "text-[28px] sm:text-[36px] lg:text-[45px] leading-[1.15] text-[var(--color-text)] font-normal",
-                  articleSerif.className
+                  articleHeading.className
                 )}
               />
 
@@ -1127,7 +1127,7 @@ export default function GuideEditorPage() {
                 </div>
 
                 {Boolean(guide.reviewerName) && (
-                  <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-teal-50 text-teal-800 text-xs font-semibold px-3 py-1.5">
+                  <div className="inline-flex w-fit items-center gap-1.5 bg-[var(--color-brand)] text-white text-xs font-bold px-3 py-1.5">
                     <CheckCircle2Icon size={14} />
                     Vérifié par un expert
                   </div>
@@ -1144,7 +1144,7 @@ export default function GuideEditorPage() {
                 placeholder="Phrase d'accroche de l'article…"
                 className={cn(
                   "text-2xl sm:text-[28px] leading-[1.2] text-[var(--color-text)] text-justify",
-                  articleSerif.className
+                  articleHeading.className
                 )}
               />
             </div>

@@ -201,7 +201,7 @@ export function LeadTasksTab({ leadId, initialTasks, value = "taches" }: { leadI
                     />
                     <div
                       className={cn(
-                        "flex size-9 shrink-0 items-center justify-center rounded-full",
+                        "flex size-9 shrink-0 items-center justify-center",
                         overdue ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
                       )}
                     >

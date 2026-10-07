@@ -1,11 +1,11 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import { NotificationBell } from "@/components/notification-bell"
-import { TeamSwitcher } from "@/components/team-switcher"
 import { useAuth } from "@/components/auth-provider"
 import { can, type PermissionResource } from "@/lib/auth"
 import {
@@ -21,14 +21,21 @@ import {
   IdCardIcon,
 } from "lucide-react"
 
+// Sidebar header: the full logo with a "CRM" tag, or just the white logo mark
+// on a brand-blue square when the sidebar is collapsed to icons.
+function SidebarBrand() {
+  return (
+    <Link href="/dashboard" aria-label="New World Courtage — Tableau de bord" className="flex h-12 items-center gap-2 px-2 group-data-[collapsible=icon]:px-0">
+      <img src="/nwc-logo.svg" alt="" className="h-8 w-auto group-data-[collapsible=icon]:hidden" />
+      <span className="bg-[var(--brand)] px-1.5 py-0.5 text-[11px] font-bold tracking-wider text-white group-data-[collapsible=icon]:hidden">CRM</span>
+      <span className="hidden size-8 items-center justify-center bg-[var(--brand)] group-data-[collapsible=icon]:flex">
+        <img src="/nwc-logo-white.svg" alt="" className="size-full object-contain p-1.5" />
+      </span>
+    </Link>
+  )
+}
+
 const data = {
-  teams: [
-    {
-      name: "New World Courtage",
-      logo: <img src="/nwc-logo-white.svg" alt="New World Courtage" className="size-full object-contain p-1.5" />,
-      plan: "CRM",
-    },
-  ],
   navGeneral: [
     {
       title: "Tableau de bord",
@@ -147,7 +154,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <div className="flex items-center gap-1">
           <div className="min-w-0 flex-1">
-            <TeamSwitcher teams={data.teams} />
+            <SidebarBrand />
           </div>
           {/* Hidden when the sidebar collapses to icon-only — no room for
               it next to the team switcher at that width, and it'd fight

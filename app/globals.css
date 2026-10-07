@@ -7,9 +7,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-site-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
+  --font-heading: var(--font-site-sans);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-light: var(--brand-light);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -50,37 +53,42 @@
 
 :root {
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Site theme (new_world_courtage/global.css): brand blue #062499,
+     light blue #3b9bd8, text #262626, light grey #f3f5f7, square corners. */
+  --brand: #062499;
+  --brand-hover: #041a73;
+  --brand-light: #3b9bd8;
+  --foreground: #262626;
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: #262626;
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: #262626;
+  --primary: #062499;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f5f7;
+  --secondary-foreground: #262626;
+  --muted: #f3f5f7;
+  --muted-foreground: #6b7280;
+  --accent: #eef1fb;
+  --accent-foreground: #062499;
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.375rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --ring: #062499;
+  --chart-1: #062499;
+  --chart-2: #3b9bd8;
+  --chart-3: #041a73;
+  --chart-4: #9db8e8;
+  --chart-5: #6b7280;
+  --radius: 0;
+  --sidebar: #f3f5f7;
+  --sidebar-foreground: #262626;
+  --sidebar-primary: #062499;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e3e8f6;
+  --sidebar-accent-foreground: #062499;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #062499;
 }
 
 .dark {
@@ -129,15 +137,28 @@
   }
 }
 
+/* Headings as on the public site: medium weight, tight tracking, and the
+   emphasised word slanted through the font's own slnt axis (no synthetic
+   italic on top). Used as <h1 className="heading-font">… <em>mot</em></h1>. */
+.heading-font {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.heading-font em,
+em.heading-font {
+  font-style: normal;
+  font-variation-settings: "slnt" -10;
+}
+
 /* Mirrors the public site's brand tokens (new_world_courtage/global.css),
    scoped so the guide block editor can render content in the site's own
    look without leaking these values into the rest of the CRM's theme. */
 .site-preview {
-  --color-brand: #1961ae;
-  --color-brand-hover: rgb(1, 76, 138);
+  --color-brand: #062499;
+  --color-brand-hover: #041a73;
   --color-light: #f3f5f7;
   --color-text: #262626;
-  --radius: 5px;
+  --radius: 0;
 }
 
 /* Matches CtaButton.js's `.cta-btn` class exactly, so the CTA block editor

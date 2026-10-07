@@ -262,7 +262,7 @@ export default function MediaPage() {
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); setDeleteTarget(f) }}
-                      className="absolute top-1.5 right-1.5 rounded-full bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/70 group-hover/media:opacity-100"
+                      className="absolute top-1.5 right-1.5 bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/70 group-hover/media:opacity-100"
                       aria-label="Supprimer"
                     >
                       <Trash2Icon size={13} />

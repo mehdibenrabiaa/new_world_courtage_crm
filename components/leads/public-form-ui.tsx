@@ -8,7 +8,7 @@
 // handlers) and typed for the CRM's TS setup; keep in sync by hand if the
 // public site's field.jsx/radio-group.jsx/checkbox.jsx visuals change.
 //
-// The public site defines --color-brand (#1961ae) globally; the CRM has no
+// The public site defines --color-brand (#062499) globally; the CRM has no
 // such token, so PublicFormBrandScope below defines it locally wherever
 // this UI is used.
 
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils"
 export function PublicFormBrandScope({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      style={{ "--color-brand": "#1961ae" } as React.CSSProperties}
+      style={{ "--color-brand": "#062499" } as React.CSSProperties}
       className={className}
       {...props}
     />
@@ -114,7 +114,7 @@ export function Checkbox({ className, checked }: { className?: string; checked: 
       data-slot="checkbox"
       data-state={checked ? "checked" : "unchecked"}
       className={cn(
-        "flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-input shadow-xs transition-shadow",
+        "flex size-4 shrink-0 items-center justify-center rounded-none border border-input shadow-xs transition-shadow",
         checked && "border-[var(--color-brand)] bg-[var(--color-brand)] text-white",
         className
       )}
@@ -131,7 +131,7 @@ export function PlainCheckboxSquare({ checked }: { checked: boolean }) {
   return (
     <span
       className={cn(
-        "w-5 h-5 border-2 flex items-center justify-center shrink-0 rounded-[3px] transition-colors",
+        "w-5 h-5 border-2 flex items-center justify-center shrink-0 rounded-none transition-colors",
         checked ? "border-[var(--color-brand)] bg-[var(--color-brand)]" : "border-[#d9d9d9] bg-white"
       )}
     >

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import {
   Collapsible,
   CollapsibleContent,
@@ -34,6 +35,12 @@ export function NavMain({
     }[]
   }[]
 }) {
+  const pathname = usePathname()
+  // The dashboard home only matches itself; other items also match their sub-pages
+  // (e.g. a lead's page keeps "Leads" highlighted).
+  const isCurrent = (url: string) =>
+    pathname === url || (url !== "/dashboard" && pathname.startsWith(`${url}/`))
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
@@ -67,7 +74,7 @@ export function NavMain({
             </Collapsible>
           ) : (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title} render={<Link href={item.url} />}>
+              <SidebarMenuButton tooltip={item.title} isActive={isCurrent(item.url)} render={<Link href={item.url} />}>
                 {item.icon}
                 <span>{item.title}</span>
               </SidebarMenuButton>

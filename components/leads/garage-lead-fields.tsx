@@ -15,7 +15,7 @@ import {
   downloadLeadDocument, fetchQuestionnaireQuestions,
   type Lead, type LeadStatus, type LeadType, type PublishedQuestion,
 } from "@/lib/api"
-import { CATEGORIES } from "@/lib/categories"
+import { categoryOptions } from "@/lib/categories"
 import { ReponsesStepViewer } from "@/components/leads/lead-answers-viewer"
 
 function formatFileSize(bytes: number) {
@@ -241,7 +241,7 @@ export function GarageLeadFields({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {categoryOptions(draft.type).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
