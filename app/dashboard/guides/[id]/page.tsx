@@ -956,6 +956,13 @@ export default function GuideEditorPage() {
                 )}
               />
 
+              <AutoGrowTextarea
+                value={guide.subtitle}
+                onChange={(subtitle) => updateField("subtitle", subtitle)}
+                placeholder="Sous-titre (une phrase sous le titre)…"
+                className="text-[17px] leading-relaxed text-gray-600"
+              />
+
               {/* Byline card */}
               <div className="bg-[var(--color-light)] rounded-xl p-6 flex flex-col gap-5">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

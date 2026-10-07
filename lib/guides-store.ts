@@ -26,6 +26,8 @@ export type Guide = {
   createdAt: string
   // Hero
   categoryHref: string
+  // Short line under the title in the article hero.
+  subtitle: string
   intro: string
   authorName: string
   authorAvatar: string
@@ -51,6 +53,7 @@ function fromApi(p: any): Guide {
     status: p.status as Status,
     createdAt: p.created_at ? p.created_at.split("T")[0] : "",
     categoryHref: p.category_href ?? "",
+    subtitle: p.subtitle ?? "",
     intro: p.intro ?? "",
     authorName: p.author_name ?? "",
     authorAvatar: p.author_avatar ?? "",
@@ -70,6 +73,7 @@ function toApi(g: Omit<Guide, "id" | "createdAt">) {
     category: g.category,
     status: g.status,
     category_href: g.categoryHref || null,
+    subtitle: g.subtitle || null,
     intro: g.intro || null,
     author_name: g.authorName || null,
     author_avatar: g.authorAvatar || null,
