@@ -124,7 +124,7 @@ export function Calendar({
                     <span className={cn("size-1.5 rounded-full bg-destructive", selectedDay && "bg-primary-foreground")} />
                   )}
                   {isSecondaryMarked && (
-                    <span className={cn("size-1.5 rounded-full bg-blue-500", selectedDay && "bg-primary-foreground")} />
+                    <span className={cn("size-1.5 rounded-full bg-[var(--brand)]", selectedDay && "bg-primary-foreground")} />
                   )}
                 </span>
               )}

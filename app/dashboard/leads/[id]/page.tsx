@@ -59,6 +59,28 @@ function formatDateTime(iso: string) {
 
 const TAB_VALUES = ["contact", "entreprise", "reponses", "documents", "statut", "apercu", "notes", "taches", "activite"]
 
+// Read-only label/value list for leads without a dedicated field set (taxi,
+// VTC, moto, auto…). Rows with no value are left out; a section with none is hidden.
+function LeadRecap({ title, rows }: { title: string; rows: [string, React.ReactNode][] }) {
+  const filled = rows.filter(([, value]) => value !== null && value !== undefined && value !== "")
+  if (filled.length === 0) return null
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{title}</h2>
+      <table className="border-separate border-spacing-y-1.5 text-sm">
+        <tbody>
+          {filled.map(([label, value], index) => (
+            <tr key={`${label}-${index}`}>
+              <td className="w-64 pr-8 align-top text-muted-foreground">{label}</td>
+              <td className="align-top font-medium text-foreground">{value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
@@ -306,21 +328,30 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               {isGarage ? (
                 <GarageLeadFields lead={lead} draft={draft} setDraft={setDraft} />
               ) : (
-                <TabsContent value="apercu" className="rounded-xl border p-5 flex flex-col gap-4">
-                  <p className="text-sm text-muted-foreground">
-                    Il n&apos;existe pas encore de formulaire dédié pour les leads « {lead.type} » — seul Assurance Garage en a un pour l&apos;instant. Réponses reçues ci-dessous.
-                  </p>
-                  {lead.answers.length > 0 && (
-                    <table className="border-separate border-spacing-y-1.5 pb-1 text-sm">
-                      <tbody>
-                        {lead.answers.map((a) => (
-                          <tr key={a.id}>
-                            <td className="pr-16 text-gray-400 align-top whitespace-nowrap">{a.question}</td>
-                            <td className="font-medium text-black align-top">{a.value}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <TabsContent value="apercu" className="border p-5 flex flex-col gap-6">
+                  <LeadRecap
+                    title="Coordonnées"
+                    rows={[
+                      ["Nom et prénom", lead.name],
+                      ["Téléphone", lead.phone ? <a href={`tel:${lead.phone}`} className="text-primary hover:underline">{lead.phone}</a> : null],
+                      ["E-mail", lead.email ? <a href={`mailto:${lead.email}`} className="text-primary hover:underline">{lead.email}</a> : null],
+                    ]}
+                  />
+                  <LeadRecap
+                    title="Véhicule et conducteur"
+                    rows={[
+                      ["Immatriculation", lead.immat],
+                      ["Date de naissance", lead.naissance],
+                      ["Permis obtenu en", lead.permis],
+                      ["Activité", lead.activite],
+                      ["SIRET", lead.siret],
+                      ["Page d'origine", lead.source],
+                    ]}
+                  />
+                  {lead.answers.length > 0 ? (
+                    <LeadRecap title="Réponses au questionnaire" rows={lead.answers.map((a) => [a.question, a.value])} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Aucune réponse de questionnaire pour ce lead.</p>
                   )}
                 </TabsContent>
               )}

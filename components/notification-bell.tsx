@@ -132,7 +132,7 @@ export function NotificationBell() {
                   className={
                     n.read
                       ? "mt-1.5 size-1.5 shrink-0 rounded-full"
-                      : "mt-1.5 size-1.5 shrink-0 rounded-full bg-blue-600"
+                      : "mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--brand)]"
                   }
                 />
                 <div className="flex-1">

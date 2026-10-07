@@ -132,7 +132,7 @@ function SectionEditor({
             type="button"
             onClick={() => onUpdate({ titleFont: opt.value })}
             className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors",
+              "rounded-none px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors",
               block.titleFont === opt.value
                 ? "bg-foreground text-background"
                 : "bg-muted text-muted-foreground hover:bg-muted-foreground/20"
@@ -261,7 +261,7 @@ function BulletCardEditor({
                 <button
                   type="button"
                   onClick={() => onItemDelete(item.id)}
-                  className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/item:opacity-100"
+                  className="mt-0.5 shrink-0 rounded-none p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/item:opacity-100"
                   aria-label="Supprimer l'élément"
                 >
                   <Trash2Icon size={12} />
@@ -351,7 +351,7 @@ function TableEditor({
                 <button
                   type="button"
                   onClick={addColumn}
-                  className="flex size-6 items-center justify-center rounded text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                  className="flex size-6 items-center justify-center rounded-none text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                   aria-label="Ajouter une colonne"
                 >
                   <PlusIcon size={13} />
@@ -380,7 +380,7 @@ function TableEditor({
                     <button
                       type="button"
                       onClick={() => deleteRow(row.id)}
-                      className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/row:opacity-100"
+                      className="rounded-none p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/row:opacity-100"
                       aria-label="Supprimer la ligne"
                     >
                       <Trash2Icon size={12} />
@@ -433,7 +433,7 @@ function AccentCardEditor({
               type="button"
               onClick={() => onUpdate({ cols: n })}
               className={cn(
-                "size-6 rounded text-xs font-medium transition-colors",
+                "size-6 rounded-none text-xs font-medium transition-colors",
                 block.cols === n
                   ? "bg-foreground text-background"
                   : "bg-muted text-muted-foreground hover:bg-muted-foreground/20"
@@ -556,7 +556,7 @@ function SortableBlock({
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab rounded p-1 text-muted-foreground hover:text-foreground touch-none"
+          className="cursor-grab rounded-none p-1 text-muted-foreground hover:text-foreground touch-none"
           aria-label="Déplacer le bloc"
         >
           <GripVerticalIcon size={13} />
@@ -566,7 +566,7 @@ function SortableBlock({
         </span>
         <button
           onClick={() => onDelete(block.id)}
-          className="rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
+          className="rounded-none p-1 text-muted-foreground hover:text-destructive transition-colors"
           aria-label="Supprimer le bloc"
         >
           <Trash2Icon size={13} />

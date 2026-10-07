@@ -41,7 +41,7 @@ function ToastItem({ toast }: { toast: ToastPrimitive.Root.Props["toast"] }) {
       <ToastPrimitive.Close
         data-slot="toast-close"
         aria-label="Fermer"
-        className="absolute top-2.5 right-2.5 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="absolute top-2.5 right-2.5 rounded-none p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <XIcon size={14} />
       </ToastPrimitive.Close>

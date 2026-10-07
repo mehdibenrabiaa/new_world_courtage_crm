@@ -713,7 +713,7 @@ export default function LeadsPage() {
                     id="nl-activite"
                     value={newLead.activite}
                     onChange={(e) => setNewLead((p) => ({ ...p, activite: e.target.value }))}
-                    placeholder="Construction"
+                    placeholder="Garagiste"
                   />
                 </div>
               </div>

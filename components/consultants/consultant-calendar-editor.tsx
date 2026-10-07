@@ -171,7 +171,7 @@ export function ConsultantCalendarEditor({ consultantId }: { consultantId: numbe
         />
         <div className="flex flex-col gap-1 px-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-destructive" /> Bloqué</span>
-          <span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-blue-500" /> Rendez-vous confirmé</span>
+          <span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[var(--brand)]" /> Rendez-vous confirmé</span>
         </div>
       </div>
       <div className="flex-1 flex flex-col gap-4 min-w-[220px]">
